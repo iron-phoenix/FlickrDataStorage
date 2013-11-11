@@ -36,10 +36,15 @@ void uploadFiles(QByteArray data, QString inputFileName){
     }
     else{
         size_t part_number = 1;
+        QByteArray header = data.mid(0, 66);
+        data = data.mid(67, -1);
         while(data.length() > (200 * 1024 * 1024) * part_number){
-            QByteArray tmp = data.mid((200 * 1024 * 1024) * (part_number - 1), 200 * 1024 * 1024 - 1);
+            QByteArray tmp = data.mid((200 * 1024 * 1024) * (part_number - 1), 200 * 1024 * 1024);
             uploadFile(tmp, inputFileName + ".part" + QString::number(part_number) + ".bmp");
+            ++part_number;
         }
+        QByteArray tmp = data.mid((200 * 1024 * 1024) * (part_number - 1), 200 * 1024 * 1024);
+        uploadFile(tmp, inputFileName + ".part" + QString::number(part_number) + ".bmp");
     }
 }
 
