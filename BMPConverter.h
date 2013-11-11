@@ -4,6 +4,7 @@
 #include <QByteArray>
 #include <QMap>
 #include <QFile>
+#include <QFileInfo>
 
 class BMPConverter{
     static char const tmp[];

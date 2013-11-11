@@ -6,7 +6,7 @@
 
 int main(int argc, char *argv[])
 {
-    QMap<QString, QByteArray> result = BMPConverter::encodeFile("/home/phoenix/Downloads/Filter - Happy Together [pleer.com].mp3");
+    QMap<QString, QByteArray> result = BMPConverter::encodeFile("/home/phoenix/Downloads/setup-x86.exe");
 
     for(QMap<QString, QByteArray>::Iterator it = result.begin(); it != result.end(); ++it){
         QFile savefile(it.key());
