@@ -6,6 +6,18 @@
 #include <QFile>
 #include <QFileInfo>
 
+struct FileToUpload{
+    QByteArray byteArray;
+    qint32 partNumber;
+    QString sourceFileName;
+
+    explicit FileToUpload(): partNumber(0), sourceFileName(""){}
+
+    QString getFileName(){
+        return sourceFileName + ".part" + QString::number(partNumber) + ".jpeg";
+    }
+};
+
 class JPEGConverter{
     QByteArray tmp;
 
@@ -16,7 +28,7 @@ class JPEGConverter{
 
 public:
     JPEGConverter(QString const &filetmp);
-    QMap<QString, QByteArray> encodeFile(QString const &inputFileName);
+    qint32 encodeFile(QString const &inputFileName, FileToUpload &fileToUpload, qint32 offset);
     bool decodeFile(QString const &filename, QByteArray const &array);
 };
 
