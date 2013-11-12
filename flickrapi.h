@@ -6,15 +6,19 @@
 #include <QNetworkAccessManager>
 #include <QMap>
 #include <QList>
+#include <QDateTime>
 #include <QUrl>
 
 struct FileDescription {
+    FileDescription() {}
+
     QString id;
     QString secret;
     QString server;
     QString title;
     QString farm;
     QString format;
+    QDateTime uploadDate;
 };
 
 class FlickrAPI : public QObject {
@@ -27,11 +31,33 @@ public:
     void uploadFile(const QString &name, const QByteArray &data, const QString &fileType = "bmp");
     void getFileList(int page = -1);
     void getFile(const FileDescription &fd);
+    void getFileInfo(const QString &id);
+
+    bool isLoggedIn() const {
+        return !userID.isEmpty() && !userName.isEmpty();
+    }
+
+    QString getAuthToken() const {
+        return oauthToken;
+    }
+
+    QString getAuthSecret() const {
+        return oauthTokenSecret;
+    }
+
+    QString getUserID() const {
+        return userID;
+    }
+
+    QString getUsername() const {
+        return userName;
+    }
 
 signals:
     void authResult(bool);
     void fileUploaded(QString);
     void fileListLoaded(QList<FileDescription>);
+    void fileInfoLoaded(FileDescription);
 
 private slots:
     void replyUploadError();
@@ -44,6 +70,7 @@ private slots:
     void replyUploadFinished();
     void replyGetFileListFinished();
     void replyGetFileFinished();
+    void replyGetFileInfoFinished();
     void redirected(QUrl);
 
 private:

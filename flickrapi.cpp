@@ -1,6 +1,5 @@
 #include "flickrapi.h"
 
-#include <QDateTime>
 #include <QCryptographicHash>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -277,22 +276,21 @@ void FlickrAPI::replyUploadFinished() {
         return;
     }
 
-    //parse success case when it will be available
-    qDebug() << reply.constData();
-    qDebug() << reply.size();
+    QString photoID = curNode.firstChild().toElement().text();
+    emit fileUploaded(photoID);
 }
 
 //----------------------------------------------------------------------------------
 
 void FlickrAPI::getFileList(int page) {
     if(page < 0) fileList.clear();
-    QString methodURL = "http://www.flickr.com/services/rest";
+    QString methodURL = "http://api.flickr.com/services/rest";
 
     QMap<QString, QString> requestParams;
     requestParams["oauth_token"] = oauthToken;
     requestParams["method"] = "flickr.photos.search";
     requestParams["user_id"] = userID;
-    requestParams["extras"] = "original_format";
+    requestParams["extras"] = "original_format,date_upload";
     if(page > 0) requestParams["page"] = QString::number(page);
     setDefaultOAuthParams(methodURL, requestParams);
 
@@ -313,7 +311,7 @@ void FlickrAPI::replyGetFileListFinished() {
     if(!xmlReply.setContent(reply)) {
         return;
     }
-    qDebug() << xmlReply.toString();
+//    qDebug() << xmlReply.toString();
 
     QDomElement curNode = xmlReply.firstChild().nextSibling().toElement();
     if(curNode.attribute("stat") != "ok") {
@@ -332,11 +330,66 @@ void FlickrAPI::replyGetFileListFinished() {
         fd.title = photoNode.attribute("title");
         fd.farm = photoNode.attribute("farm");
         fd.format = photoNode.attribute("originalformat");
+        fd.uploadDate = QDateTime::fromMSecsSinceEpoch(QString(photoNode.attribute("dateupload") + "000").toULongLong());
         fileList.push_back(fd);
     }
 
     if(page < pages) getFileList(page + 1);
     else emit fileListLoaded(fileList);
+}
+
+//----------------------------------------------------------------------------------
+
+void FlickrAPI::getFileInfo(const QString &id) {
+    QString methodURL = "http://api.flickr.com/services/rest";
+    QMap<QString, QString> requestParams;
+    requestParams["oauth_token"] = oauthToken;
+    requestParams["method"] = "flickr.photos.getInfo";
+    requestParams["user_id"] = userID;
+    requestParams["photo_id"] = id;
+    setDefaultOAuthParams(methodURL, requestParams);
+
+    QNetworkRequest req(QUrl(urlFromParams(methodURL, requestParams)));
+    req.setRawHeader("User-Agent", "Mozilla/5.0");
+    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toAscii());
+
+    QNetworkReply *reply = netManager->get(req);
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDownloadError()));
+    connect(reply, SIGNAL(finished()), this, SLOT(replyGetFileInfoFinished()));
+}
+
+void FlickrAPI::replyGetFileInfoFinished() {
+    QByteArray reply = getReplyContent(sender());
+
+    QDomDocument xmlReply;
+    if(!xmlReply.setContent(reply)) {
+        emit fileInfoLoaded(FileDescription());
+        return;
+    }
+    qDebug() << xmlReply.toString();
+    QDomElement curNode = xmlReply.firstChild().nextSibling().toElement();
+    if(curNode.attribute("stat") != "ok") {
+        qDebug() << "error" << curNode.firstChild().toElement().attribute("msg");
+        emit fileInfoLoaded(FileDescription());
+        return;
+    }
+    curNode = curNode.firstChild().toElement();
+    FileDescription fd;
+    fd.id = curNode.attribute("id");
+    fd.secret = curNode.attribute("originalsecret");
+    fd.server = curNode.attribute("server");
+//    fd.title = curNode.attribute("title");
+    fd.farm = curNode.attribute("farm");
+    fd.format = curNode.attribute("originalformat");
+    fd.uploadDate = QDateTime::fromMSecsSinceEpoch(QString(curNode.attribute("dateuploaded") + "000").toULongLong());
+    for(curNode = curNode.firstChild().toElement(); !curNode.isNull(); curNode = curNode.nextSibling().toElement()) {
+        if(curNode.tagName() == "title") {
+            fd.title = curNode.text();
+            break;
+        }
+    }
+    if(fd.title.isEmpty()) emit fileInfoLoaded(FileDescription());
+    else emit fileInfoLoaded(fd);
 }
 
 //----------------------------------------------------------------------------------
@@ -356,6 +409,7 @@ void FlickrAPI::replyGetFileFinished() {
     QByteArray reply = getReplyContent(sender());
 
     qDebug() << reply.size();
+    qDebug() << reply.constData();
     qDebug() << "got it";
 }
 

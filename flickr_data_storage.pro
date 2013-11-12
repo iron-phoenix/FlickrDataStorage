@@ -15,10 +15,16 @@ TEMPLATE = app
 SOURCES += main.cpp\
         mainwindow.cpp \
     flickrapi.cpp \
-    BMPConverter.cpp
+    JPEGConverter.cpp \
+    flickrfileview.cpp
 
 HEADERS  += mainwindow.h \
     flickrapi.h \
-    BMPConverter.h
+    BMPConverter.h \
+    JPEGConverter.h \
+    flickrfileview.h
 
 #CONFIG += release
+
+RESOURCES += \
+    resources.qrc
