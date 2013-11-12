@@ -407,10 +407,7 @@ void FlickrAPI::getFile(const FileDescription &fd) {
 
 void FlickrAPI::replyGetFileFinished() {
     QByteArray reply = getReplyContent(sender());
-
-    qDebug() << reply.size();
-    qDebug() << reply.constData();
-    qDebug() << "got it";
+    emit fileDownloaded(reply);
 }
 
 //----------------------------------------------------------------------------------

@@ -58,6 +58,7 @@ signals:
     void fileUploaded(QString);
     void fileListLoaded(QList<FileDescription>);
     void fileInfoLoaded(FileDescription);
+    void fileDownloaded(QByteArray);
 
 private slots:
     void replyUploadError();

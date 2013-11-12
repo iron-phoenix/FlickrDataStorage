@@ -43,9 +43,11 @@ public:
 
 private slots:
     void uploadFile(const QString &fileName);
+    void downloadFile(const FileDescription &fd);
 
     void authResult(bool res);
     void fileUploaded(QString id);
+    void fileDownloaded(QByteArray content);
     void fileListLoaded(QList<FileDescription> files);
     void showFileInfo(FileDescription fd);
 

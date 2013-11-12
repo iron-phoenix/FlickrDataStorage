@@ -20,6 +20,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(flickrAPI, SIGNAL(fileListLoaded(QList<FileDescription>)), this, SLOT(fileListLoaded(QList<FileDescription>)));
     connect(flickrAPI, SIGNAL(fileUploaded(QString)), this, SLOT(fileUploaded(QString)));
     connect(flickrAPI, SIGNAL(fileInfoLoaded(FileDescription)), this, SLOT(showFileInfo(FileDescription)));
+    connect(flickrAPI, SIGNAL(fileDownloaded(QByteArray)), this, SLOT(fileDownloaded(QByteArray)));
 
     actUpload = new QAction("Upload files...", this);
     connect(actUpload, SIGNAL(triggered()), this, SLOT(uploadTriggered()));
@@ -43,6 +44,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     dirView->header()->setStretchLastSection(true);
 
     flickrFileView = new FlickrFileView(this);
+    connect(flickrFileView, SIGNAL(requestDownload(FileDescription)), this, SLOT(downloadFile(FileDescription)));
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->addWidget(dirView);
@@ -118,6 +120,8 @@ void MainWindow::authResult(bool res) {
     }
 }
 
+//----------------------------------------------------------------------------------
+
 void MainWindow::fileListLoaded(QList<FileDescription> files) {
     cDialog->hide();
     flickrFileView->setFileList(files);
@@ -132,6 +136,21 @@ void MainWindow::fileUploaded(QString id) {
         flickrAPI->getFileInfo(id);
     }
 }
+
+//----------------------------------------------------------------------------------
+
+void MainWindow::downloadFile(const FileDescription &fd) {
+    QString fileName = QFileDialog::getSaveFileName(this);
+    if(fileName.isEmpty()) return;
+
+    flickrAPI->getFile(fd);
+}
+
+void MainWindow::fileDownloaded(QByteArray content) {
+
+}
+
+//----------------------------------------------------------------------------------
 
 void MainWindow::uploadTriggered() {
     QStringList fileNames = QFileDialog::getOpenFileNames(this, "Select files");
