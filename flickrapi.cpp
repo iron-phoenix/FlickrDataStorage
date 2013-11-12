@@ -280,6 +280,41 @@ void FlickrAPI::replyUploadFinished() {
 
 //----------------------------------------------------------------------------------
 
+void FlickrAPI::deleteFile(const FileDescription &fd){
+    QString methodURL = "http://api.flickr.com/services/rest";
+    QMap<QString, QString> requestParams;
+    requestParams["oauth_token"] = oauthToken;
+    requestParams["method"] = "flickr.photos.delete";
+    requestParams["photo_id"] = fd.id;
+    setDefaultOAuthParams(methodURL, requestParams);
+
+    QNetworkRequest req(QUrl(urlFromParams(methodURL, requestParams)));
+    req.setRawHeader("User-Agent", "Mozilla/5.0");
+    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toAscii());
+
+    QNetworkReply *reply = netManager->get(req);
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDownloadError()));
+    connect(reply, SIGNAL(finished()), this, SLOT(replyDeleteFileFinished()));
+}
+
+void FlickrAPI::replyDeleteFileFinished(){
+    QByteArray reply = getReplyContent(sender());
+
+    QDomDocument xmlReply;
+    if(!xmlReply.setContent(reply)) {
+        emit fileDeleted(false);
+        return;
+    }
+    QDomElement curNode = xmlReply.firstChild().nextSibling().toElement();
+    if(curNode.attribute("stat") != "ok") {
+        emit fileDeleted(false);
+        return;
+    }
+    emit fileDeleted(true);
+}
+
+//----------------------------------------------------------------------------------
+
 void FlickrAPI::getFileList(int page) {
     if(page < 0) fileList.clear();
     QString methodURL = "http://api.flickr.com/services/rest";

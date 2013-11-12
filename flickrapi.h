@@ -45,6 +45,7 @@ public:
     void getFileList(int page = -1);
     void getFile(const FileDescription &fd, const QString &id);
     void getFileInfo(const QString &id, const QString &fileName);
+    void deleteFile(FileDescription const &fd);
 
     bool isLoggedIn() const {
         return !userID.isEmpty() && !userName.isEmpty();
@@ -72,6 +73,7 @@ signals:
     void fileListLoaded(QList<BigFileDescription>);
     void fileInfoLoaded(FileDescription);
     void fileDownloaded(QByteArray, QString);
+    void fileDeleted(bool);
 
     void downloadProgress(qint64, qint64, QString);
 
@@ -87,6 +89,7 @@ private slots:
     void replyGetFileListFinished();
     void replyGetFileFinished();
     void replyGetFileInfoFinished();
+    void replyDeleteFileFinished();
     void redirected(QUrl);
 
     void emitDownloadPorgress(qint64 bd, qint64 bt);
