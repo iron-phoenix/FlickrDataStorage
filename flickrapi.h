@@ -73,6 +73,8 @@ signals:
     void fileInfoLoaded(FileDescription);
     void fileDownloaded(QByteArray, QString);
 
+    void downloadProgress(qint64, qint64, QString);
+
 private slots:
     void replyUploadError();
     void replyDownloadError();
@@ -86,6 +88,8 @@ private slots:
     void replyGetFileFinished();
     void replyGetFileInfoFinished();
     void redirected(QUrl);
+
+    void emitDownloadPorgress(qint64 bd, qint64 bt);
 
 private:
     void getRequestToken();

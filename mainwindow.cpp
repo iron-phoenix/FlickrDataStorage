@@ -23,6 +23,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(flickrAPI, SIGNAL(fileUploaded(FileDescription, QString)), this, SLOT(fileUploaded(FileDescription, QString)));
 //    connect(flickrAPI, SIGNAL(fileInfoLoaded(FileDescription)), this, SLOT(showFileInfo(FileDescription)));
     connect(flickrAPI, SIGNAL(fileDownloaded(QByteArray,QString)), this, SLOT(fileDownloaded(QByteArray,QString)));
+    connect(flickrAPI, SIGNAL(downloadProgress(qint64,qint64,QString)), this, SLOT(updateDownloadProgress(qint64,qint64,QString)));
 
     actUpload = new QAction("Upload files...", this);
     connect(actUpload, SIGNAL(triggered()), this, SLOT(uploadTriggered()));
@@ -34,7 +35,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     fileMenu->addAction(actLogin);
     fileMenu->addAction(actUpload);
 
-    cDialog = new ConnectingDialog();
+    cDialog = new ConnectingDialog(this);
     converter = new JPEGConverter(":/tmp.jpg");
 
     dirView = new QTreeView(this);
@@ -45,8 +46,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     dirView->hideColumn(3);
     dirView->header()->setStretchLastSection(true);
 
+    pbDownloading = new QProgressBar(this);
+    pbDownloading->setRange(0, 100);
+    pbDownloading->setMaximumHeight(20);
+
+    lbDownloading = new QLabel(this);
+    statusBar()->addWidget(lbDownloading);
+    statusBar()->addWidget(pbDownloading);
+    lbDownloading->hide();
+    pbDownloading->hide();
+
     flickrFileView = new FlickrFileView(this);
     connect(flickrFileView, SIGNAL(requestDownload(BigFileDescription)), this, SLOT(downloadFile(BigFileDescription)));
+    connect(flickrFileView, SIGNAL(requestDelete(BigFileDescription)), this, SLOT(deleteFile(BigFileDescription)));
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->addWidget(dirView);
@@ -60,12 +72,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     this->statusBar()->addPermanentWidget(lbUserID);
     this->statusBar()->setSizeGripEnabled(false);
 
-    QTimer::singleShot(1000, this, SLOT(loginUser()));
+    sizeToDownload = 0;
+    sizeDownloaded = 0;
 
+    QTimer::singleShot(500, this, SLOT(loginUser()));
 }
 
 MainWindow::~MainWindow() {
-    cDialog->deleteLater();
 }
 
 void MainWindow::loginUser() {
@@ -97,9 +110,6 @@ void MainWindow::uploadFile(const QString &fileName) {
         uploadMap[fileName] = ftup;
         flickrAPI->uploadFile(ftup.getFileName(), ftup.byteArray, fileName);
     }
-//    for(QMap<QString, QByteArray>::Iterator part = fileParts.begin(); part != fileParts.end(); ++part) {
-//        flickrAPI->uploadFile(part.key(), part.value());
-//    }
 }
 
 void MainWindow::fileUploaded(const FileDescription &fd, const QString &fileName) {
@@ -120,10 +130,6 @@ void MainWindow::fileUploaded(const FileDescription &fd, const QString &fileName
         }
     }
 }
-
-//void MainWindow::showFileInfo(FileDescription fd) {
-//    flickrFileView->addFile(BigFileDescription(fd));
-//}
 
 //----------------------------------------------------------------------------------
 
@@ -167,6 +173,13 @@ void MainWindow::downloadFile(const BigFileDescription &fd) {
         tmp.remove();
     }
 
+    if(downloadSizeMap.isEmpty()) {
+        pbDownloading->setValue(0);
+        lbDownloading->setText("Downloading files: 1/0  ");
+        pbDownloading->show();
+        lbDownloading->show();
+    }
+
     flickrAPI->getFile(fd.first(), downloadFileName);
     downloadFileMap[downloadFileName] = fd.mid(1);
 }
@@ -177,7 +190,13 @@ void MainWindow::fileDownloaded(const QByteArray &content, const QString &fileNa
         QMessageBox::critical(this, "Error", "Unable to decode file: " + fileName);
     } else {
         if(fd.isEmpty()) {
-            statusBar()->showMessage("File downloaded");
+            sizeToDownload -= downloadSizeMap[fileName];
+            sizeDownloaded -= downloadSizeMap[fileName];
+            downloadSizeMap.remove(fileName);
+            currentSizeMap.remove(fileName);
+            if(downloadSizeMap.empty()) pbDownloading->hide();
+
+            statusBar()->showMessage("File downloaded: " + fileName, 3000);
             downloadFileMap.remove(fileName);
         } else {
             flickrAPI->getFile(fd.first(), fileName);
@@ -191,6 +210,36 @@ void MainWindow::fileDownloaded(const QByteArray &content, const QString &fileNa
 void MainWindow::uploadTriggered() {
     QStringList fileNames = QFileDialog::getOpenFileNames(this, "Select files");
     for(QStringList::Iterator fn = fileNames.begin(); fn != fileNames.end(); ++fn) uploadFile(*fn);
+}
+
+//----------------------------------------------------------------------------------
+
+void MainWindow::updateDownloadProgress(qint64 bytesLoaded, qint64 bytesTotal, const QString &fileName) {
+    QMap<QString, quint64>::Iterator fn = downloadSizeMap.find(fileName);
+    if(fn == downloadSizeMap.end()) {
+        downloadSizeMap[fileName] = bytesTotal;
+        sizeToDownload += bytesTotal;
+    }
+    sizeDownloaded += bytesLoaded - currentSizeMap[fileName];
+    currentSizeMap[fileName] = bytesLoaded;
+
+    lbDownloading->setText(getDownloadingFilesCountString());
+
+    pbDownloading->setValue( ((double)sizeDownloaded / (double)sizeToDownload) * 100 );
+}
+
+QString MainWindow::getDownloadingFilesCountString() const {
+    int total = 0;
+    for(QMap<QString, BigFileDescription>::ConstIterator df = downloadFileMap.begin(); df != downloadFileMap.end(); ++df) {
+        total += df.value().size();
+    }
+    return QString("Downloading files: %1/%2   ").arg(downloadFileMap.size()).arg(total);
+}
+
+//----------------------------------------------------------------------------------
+
+void MainWindow::deleteFile(const BigFileDescription &fd) {
+
 }
 
 //----------------------------------------------------------------------------------

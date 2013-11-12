@@ -11,7 +11,6 @@ FlickrFileView::FlickrFileView(QWidget *parent) : QListView(parent) {
 
     actDelFile = new QAction("Delete", this);
     connect(actDelFile, SIGNAL(triggered()), this, SLOT(deleteFileTriggered()));
-    actDelFile->setEnabled(false);
 
     this->setViewMode(QListView::IconMode);
     fileModel = new QStandardItemModel(0, 1);
@@ -66,7 +65,6 @@ void FlickrFileView::downloadFileTriggered() {
     for(QModelIndexList::Iterator i = indxs.begin(); i != indxs.end(); ++i) {
         QString id = fileModel->data(*i, Qt::UserRole + 1).toString();
         emit requestDownload(fileList[id]);
-//        emit requestDownload(fileList.at(i->row()));
     }
 }
 
@@ -74,6 +72,7 @@ void FlickrFileView::deleteFileTriggered() {
     if(this->selectedIndexes().isEmpty()) return;
     QModelIndexList indxs = this->selectedIndexes();
     for(QModelIndexList::Iterator i = indxs.begin(); i != indxs.end(); ++i) {
-//        emit requestDelete(fileList.at(i->row()));
+        QString id = fileModel->data(*i, Qt::UserRole + 1).toString();
+        emit requestDownload(fileList[id]);
     }
 }

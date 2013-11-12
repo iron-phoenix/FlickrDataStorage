@@ -21,7 +21,7 @@ public:
 
 signals:
     void requestDownload(const BigFileDescription &fd);
-    void requestDelete(FileDescription fd);
+    void requestDelete(const BigFileDescription &fd);
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event);

@@ -6,10 +6,10 @@
 #include <QAction>
 
 #include <QSplashScreen>
+#include <QProgressBar>
 #include <QMovie>
 #include <QTimer>
 #include <QLabel>
-#include <QPair>
 
 #include "flickrapi.h"
 #include "flickrfileview.h"
@@ -45,12 +45,14 @@ public:
 private slots:
     void uploadFile(const QString &fileName);
     void downloadFile(const BigFileDescription &fd);
+    void deleteFile(const BigFileDescription &fd);
 
     void authResult(bool res);
     void fileUploaded(const FileDescription &id, const QString &fileName);
     void fileDownloaded(const QByteArray &content, const QString &fileName);
     void fileListLoaded(QList<BigFileDescription> files);
-//    void showFileInfo(FileDescription fd);
+
+    void updateDownloadProgress(qint64 bytesLoaded, qint64 bytesTotal, const QString &fileName);
 
     void loginUser();
     void logoutUser();
@@ -58,6 +60,7 @@ private slots:
 
 private:
     QIcon getFileIcon(const QString &fileName) const;
+    QString getDownloadingFilesCountString() const;
 
     FlickrAPI *flickrAPI;
     ConnectingDialog *cDialog;
@@ -66,11 +69,15 @@ private:
     QTreeView *dirView;
     FlickrFileView *flickrFileView;
     QAction *actLogin, *actUpload;
-    QLabel *lbUserID;
+    QLabel *lbUserID, *lbDownloading;
+    QProgressBar *pbDownloading;
 
     QMap<QString, FileToUpload> uploadMap;
     QMap<QString, BigFileDescription> uploadFilePartMap;
     QMap<QString, BigFileDescription> downloadFileMap;
+    QMap<QString, quint64> downloadSizeMap, currentSizeMap;
+
+    quint64 sizeToDownload, sizeDownloaded;
 };
 
 #endif // MAINWINDOW_H
