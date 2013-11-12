@@ -17,6 +17,7 @@ class JPEGConverter{
 public:
     JPEGConverter(QString const &filetmp);
     QMap<QString, QByteArray> encodeFile(QString const &inputFileName);
+    bool decodeFile(QString const &filename, QByteArray const &array);
 };
 
 #endif // BMPCONVERTER_H

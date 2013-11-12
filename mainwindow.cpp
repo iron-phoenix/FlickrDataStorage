@@ -140,14 +140,26 @@ void MainWindow::fileUploaded(QString id) {
 //----------------------------------------------------------------------------------
 
 void MainWindow::downloadFile(const FileDescription &fd) {
-    QString fileName = QFileDialog::getSaveFileName(this);
-    if(fileName.isEmpty()) return;
+    downloadFileName = QFileDialog::getSaveFileName(this, "Download file", fd.getCroppedName());
+    if(downloadFileName.isEmpty()) return;
+
+    if(QFile::exists(downloadFileName)) {
+        QFile tmp(downloadFileName);
+        tmp.remove();
+    }
 
     flickrAPI->getFile(fd);
 }
 
 void MainWindow::fileDownloaded(QByteArray content) {
-
+    bool res = converter->decodeFile(downloadFileName, content);
+    if(res){
+        statusBar()->showMessage("File downloaded");
+        qDebug() << "ok";
+    }
+    else{
+        QMessageBox::critical(this, "Error", "Unable to decode");
+    }
 }
 
 //----------------------------------------------------------------------------------

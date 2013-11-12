@@ -64,6 +64,7 @@ private:
     FlickrFileView *flickrFileView;
     QAction *actLogin, *actUpload;
     QLabel *lbUserID;
+    QString downloadFileName;
 };
 
 #endif // MAINWINDOW_H

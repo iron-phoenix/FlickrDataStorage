@@ -57,9 +57,10 @@ void FlickrFileView::resizeEvent(QResizeEvent *event) {
 void FlickrFileView::downloadFileTriggered() {
     if(this->selectedIndexes().isEmpty()) return;
     QModelIndexList indxs = this->selectedIndexes();
-    for(QModelIndexList::Iterator i = indxs.begin(); i != indxs.end(); ++i) {
-        emit requestDownload(fileList.at(i->row()));
-    }
+    emit requestDownload(fileList.at(indxs[0].row()));
+//    for(QModelIndexList::Iterator i = indxs.begin(); i != indxs.end(); ++i) {
+//        emit requestDownload(fileList.at(i->row()));
+//    }
 }
 
 void FlickrFileView::deleteFileTriggered() {

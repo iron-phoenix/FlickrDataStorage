@@ -12,6 +12,10 @@
 struct FileDescription {
     FileDescription() {}
 
+    QString getCroppedName() const {
+        return title.left(title.lastIndexOf('.'));
+    }
+
     QString id;
     QString secret;
     QString server;

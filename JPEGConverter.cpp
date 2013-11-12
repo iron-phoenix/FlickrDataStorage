@@ -42,3 +42,10 @@ QMap<QString, QByteArray> JPEGConverter::encodeFile(QString const &inputFileName
     }
     return result;
 }
+
+bool JPEGConverter::decodeFile(const QString &filename, const QByteArray &array){
+    QFile in(filename);
+    if(!in.open(QIODevice::Append)) return false;
+    in.write(convertJPEGBytesToBytes(array));
+    return true;
+}
