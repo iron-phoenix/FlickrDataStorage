@@ -212,7 +212,7 @@ void FlickrAPI::replyTestLogin() {
 
 //----------------------------------------------------------------------------------
 
-void FlickrAPI::uploadFile(const QString &name, const QByteArray &data, const QString &fileType) {
+void FlickrAPI::uploadFile(const QString &name, const QByteArray &data, const QString &sourceFileName) {
     QString methodURL = "http://up.flickr.com/services/upload";
 
     QMap<QString, QString> requestParams;
@@ -244,7 +244,7 @@ void FlickrAPI::uploadFile(const QString &name, const QByteArray &data, const QS
     boundary = "\r\n" + boundary;
     reqData.append(boundary);
     reqData.append(QString("Content-Disposition: form-data; name=\"photo\"; filename=\"%1\"\r\n").arg(name));
-    reqData.append(QString("Content-Type: image/%1\r\n\r\n").arg(fileType));
+    reqData.append(QString("Content-Type: image/jpeg\r\n\r\n"));
     reqData.append(data);
     reqData.append(endBoundary);
 
@@ -256,28 +256,33 @@ void FlickrAPI::uploadFile(const QString &name, const QByteArray &data, const QS
     req.setHeader(QNetworkRequest::ContentLengthHeader, reqData.size());
 
     QNetworkReply *reply = netManager->post(req, reqData);
+    fileUploadReplyMap[reply] = sourceFileName;
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyUploadError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyUploadFinished()));
 }
 
 void FlickrAPI::replyUploadFinished() {
-    QByteArray reply = getReplyContent(sender());
+    QNetworkReply *nwreply = qobject_cast<QNetworkReply*>(sender());
+    QString fileName = fileUploadReplyMap[nwreply];
+    fileUploadReplyMap.remove(nwreply);
 
+    QByteArray reply = getReplyContent(sender());
     QDomDocument xmlReply;
     if(!xmlReply.setContent(reply)) {
-        emit fileUploaded("");
+        emit fileUploaded(FileDescription(), fileName);
         return;
     }
 
     QDomElement curNode = xmlReply.firstChild().nextSibling().toElement();
     if(curNode.attribute("stat") != "ok") {
         qDebug() << "error" << curNode.firstChild().toElement().attribute("msg");
-        emit fileUploaded("");
+        emit fileUploaded(FileDescription(), fileName);
         return;
     }
 
     QString photoID = curNode.firstChild().toElement().text();
-    emit fileUploaded(photoID);
+    getFileInfo(photoID, fileName);
+//    emit fileUploaded(photoID, fileName);
 }
 
 //----------------------------------------------------------------------------------
@@ -311,7 +316,6 @@ void FlickrAPI::replyGetFileListFinished() {
     if(!xmlReply.setContent(reply)) {
         return;
     }
-//    qDebug() << xmlReply.toString();
 
     QDomElement curNode = xmlReply.firstChild().nextSibling().toElement();
     if(curNode.attribute("stat") != "ok") {
@@ -335,12 +339,12 @@ void FlickrAPI::replyGetFileListFinished() {
     }
 
     if(page < pages) getFileList(page + 1);
-    else emit fileListLoaded(fileList);
+    else emit fileListLoaded(processFiles(fileList));
 }
 
 //----------------------------------------------------------------------------------
 
-void FlickrAPI::getFileInfo(const QString &id) {
+void FlickrAPI::getFileInfo(const QString &id, const QString &fileName) {
     QString methodURL = "http://api.flickr.com/services/rest";
     QMap<QString, QString> requestParams;
     requestParams["oauth_token"] = oauthToken;
@@ -354,23 +358,27 @@ void FlickrAPI::getFileInfo(const QString &id) {
     req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toAscii());
 
     QNetworkReply *reply = netManager->get(req);
+    fileUploadReplyMap[reply] = fileName;
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDownloadError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyGetFileInfoFinished()));
 }
 
 void FlickrAPI::replyGetFileInfoFinished() {
-    QByteArray reply = getReplyContent(sender());
+    QNetworkReply *nwreply = qobject_cast<QNetworkReply*>(sender());
+    QString fileName = fileUploadReplyMap[nwreply];
+    fileUploadReplyMap.remove(nwreply);
 
+    QByteArray reply = getReplyContent(sender());
     QDomDocument xmlReply;
     if(!xmlReply.setContent(reply)) {
-        emit fileInfoLoaded(FileDescription());
+        emit fileUploaded(FileDescription(), fileName);
         return;
     }
-    qDebug() << xmlReply.toString();
+
     QDomElement curNode = xmlReply.firstChild().nextSibling().toElement();
     if(curNode.attribute("stat") != "ok") {
         qDebug() << "error" << curNode.firstChild().toElement().attribute("msg");
-        emit fileInfoLoaded(FileDescription());
+        emit fileUploaded(FileDescription(), fileName);
         return;
     }
     curNode = curNode.firstChild().toElement();
@@ -388,26 +396,28 @@ void FlickrAPI::replyGetFileInfoFinished() {
             break;
         }
     }
-    if(fd.title.isEmpty()) emit fileInfoLoaded(FileDescription());
-    else emit fileInfoLoaded(fd);
+    if(fd.title.isEmpty()) emit fileUploaded(FileDescription(), fileName);
+    else emit fileUploaded(fd, fileName);
 }
 
 //----------------------------------------------------------------------------------
 
-void FlickrAPI::getFile(const FileDescription &fd) {
+void FlickrAPI::getFile(const FileDescription &fd, const QString &id) {
     QString fileUrl = QString("http://farm%1.staticflickr.com/%2/%3_%4_o.%5").arg(fd.farm)
             .arg(fd.server).arg(fd.id).arg(fd.secret).arg(fd.format);
 
     qDebug() << fileUrl;
 
     QNetworkReply *reply = netManager->get(QNetworkRequest(QUrl(fileUrl)));
+    fileDownloadReplyMap[reply] = id;
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDownloadError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyGetFileFinished()));
 }
 
 void FlickrAPI::replyGetFileFinished() {
+    QString fileName = extractReplyID(sender(), fileDownloadReplyMap);
     QByteArray reply = getReplyContent(sender());
-    emit fileDownloaded(reply);
+    emit fileDownloaded(reply, fileName);
 }
 
 //----------------------------------------------------------------------------------
@@ -448,6 +458,13 @@ QString FlickrAPI::nonce() const {
 }
 
 //----------------------------------------------------------------------------------
+
+inline QString FlickrAPI::extractReplyID(QObject *rawReply, QMap<QNetworkReply *, QString> &fromMap) {
+    QNetworkReply *nwreply = qobject_cast<QNetworkReply*>(rawReply);
+    QString id = fromMap[nwreply];
+    fromMap.remove(nwreply);
+    return id;
+}
 
 QByteArray FlickrAPI::getReplyContent(QObject *rawReply) const {
     QNetworkReply *qreply = qobject_cast<QNetworkReply*>(rawReply);
@@ -513,3 +530,13 @@ QString FlickrAPI::hmacSha1(QByteArray key, const QByteArray &baseString) const 
     return hashed.toBase64();
 }
 
+//----------------------------------------------------------------------------------
+
+QList<BigFileDescription> FlickrAPI::processFiles(QList<FileDescription> &flist) {
+    qSort(flist.begin(), flist.end());
+    QMap<QString, BigFileDescription> bigFileList;
+    for(QList<FileDescription>::Iterator f = flist.begin(); f != flist.end(); ++f) {
+        bigFileList[f->getCroppedName()].append(*f);
+    }
+    return bigFileList.values();
+}

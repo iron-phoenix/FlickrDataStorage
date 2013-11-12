@@ -9,6 +9,7 @@
 #include <QMovie>
 #include <QTimer>
 #include <QLabel>
+#include <QPair>
 
 #include "flickrapi.h"
 #include "flickrfileview.h"
@@ -43,19 +44,21 @@ public:
 
 private slots:
     void uploadFile(const QString &fileName);
-    void downloadFile(const FileDescription &fd);
+    void downloadFile(const BigFileDescription &fd);
 
     void authResult(bool res);
-    void fileUploaded(QString id);
-    void fileDownloaded(QByteArray content);
-    void fileListLoaded(QList<FileDescription> files);
-    void showFileInfo(FileDescription fd);
+    void fileUploaded(const FileDescription &id, const QString &fileName);
+    void fileDownloaded(const QByteArray &content, const QString &fileName);
+    void fileListLoaded(QList<BigFileDescription> files);
+//    void showFileInfo(FileDescription fd);
 
     void loginUser();
     void logoutUser();
     void uploadTriggered();
 
 private:
+    QIcon getFileIcon(const QString &fileName) const;
+
     FlickrAPI *flickrAPI;
     ConnectingDialog *cDialog;
     JPEGConverter *converter;
@@ -64,7 +67,10 @@ private:
     FlickrFileView *flickrFileView;
     QAction *actLogin, *actUpload;
     QLabel *lbUserID;
-    QString downloadFileName;
+
+    QMap<QString, FileToUpload> uploadMap;
+    QMap<QString, BigFileDescription> uploadFilePartMap;
+    QMap<QString, BigFileDescription> downloadFileMap;
 };
 
 #endif // MAINWINDOW_H

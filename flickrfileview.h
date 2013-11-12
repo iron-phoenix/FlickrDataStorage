@@ -6,25 +6,25 @@
 #include <QContextMenuEvent>
 #include <QResizeEvent>
 #include <QStandardItemModel>
+#include <QListView>
 
 #include "flickrapi.h"
 
-class FlickrFileView : public QTableView {
+class FlickrFileView : public QListView {
     Q_OBJECT
 
 public:
     FlickrFileView(QWidget *parent);
 
-    void setFileList(const QList<FileDescription> &list);
-    void addFile(FileDescription &fd);
+    void setFileList(const QList<BigFileDescription> &list);
+    void addFile(const BigFileDescription &fd);
 
 signals:
-    void requestDownload(FileDescription fd);
+    void requestDownload(const BigFileDescription &fd);
     void requestDelete(FileDescription fd);
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event);
-    void resizeEvent(QResizeEvent *event);
 
 private slots:
     void downloadFileTriggered();
@@ -33,7 +33,7 @@ private slots:
 private:
     QAction *actGetFile, *actDelFile;
     QStandardItemModel *fileModel;
-    QList<FileDescription> fileList;
+    QMap<QString, BigFileDescription> fileList;
 };
 
 #endif // FLICKRFILEVIEW_H

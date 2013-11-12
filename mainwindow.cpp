@@ -11,16 +11,18 @@
 #include <QFileDialog>
 #include <QStatusBar>
 #include <QMessageBox>
+#include <QIcon>
+#include <QPixmap>
 
 #include <QFileSystemModel>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     flickrAPI = new FlickrAPI(this);
     connect(flickrAPI, SIGNAL(authResult(bool)), this, SLOT(authResult(bool)));
-    connect(flickrAPI, SIGNAL(fileListLoaded(QList<FileDescription>)), this, SLOT(fileListLoaded(QList<FileDescription>)));
-    connect(flickrAPI, SIGNAL(fileUploaded(QString)), this, SLOT(fileUploaded(QString)));
-    connect(flickrAPI, SIGNAL(fileInfoLoaded(FileDescription)), this, SLOT(showFileInfo(FileDescription)));
-    connect(flickrAPI, SIGNAL(fileDownloaded(QByteArray)), this, SLOT(fileDownloaded(QByteArray)));
+    connect(flickrAPI, SIGNAL(fileListLoaded(QList<BigFileDescription>)), this, SLOT(fileListLoaded(QList<BigFileDescription>)));
+    connect(flickrAPI, SIGNAL(fileUploaded(FileDescription, QString)), this, SLOT(fileUploaded(FileDescription, QString)));
+//    connect(flickrAPI, SIGNAL(fileInfoLoaded(FileDescription)), this, SLOT(showFileInfo(FileDescription)));
+    connect(flickrAPI, SIGNAL(fileDownloaded(QByteArray,QString)), this, SLOT(fileDownloaded(QByteArray,QString)));
 
     actUpload = new QAction("Upload files...", this);
     connect(actUpload, SIGNAL(triggered()), this, SLOT(uploadTriggered()));
@@ -44,7 +46,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     dirView->header()->setStretchLastSection(true);
 
     flickrFileView = new FlickrFileView(this);
-    connect(flickrFileView, SIGNAL(requestDownload(FileDescription)), this, SLOT(downloadFile(FileDescription)));
+    connect(flickrFileView, SIGNAL(requestDownload(BigFileDescription)), this, SLOT(downloadFile(BigFileDescription)));
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->addWidget(dirView);
@@ -85,20 +87,43 @@ void MainWindow::logoutUser() {
 //----------------------------------------------------------------------------------
 
 void MainWindow::uploadFile(const QString &fileName) {
-    QMap<QString, QByteArray> fileParts = converter->encodeFile(fileName);
-    if(fileParts.empty()) {
-        qDebug() << "unable to open file";
+    getFileIcon(fileName);  //cache the file icon
+    FileToUpload ftup;
+    converter->encodeFile(fileName, ftup);
+    if(ftup.offset == 0) {
+        QMessageBox::critical(this, "Error", "Unable to open file: " + fileName);
         return;
+    } else {
+        uploadMap[fileName] = ftup;
+        flickrAPI->uploadFile(ftup.getFileName(), ftup.byteArray, fileName);
     }
-    for(QMap<QString, QByteArray>::Iterator part = fileParts.begin(); part != fileParts.end(); ++part) {
-        flickrAPI->uploadFile(part.key(), part.value());
-    }
-
+//    for(QMap<QString, QByteArray>::Iterator part = fileParts.begin(); part != fileParts.end(); ++part) {
+//        flickrAPI->uploadFile(part.key(), part.value());
+//    }
 }
 
-void MainWindow::showFileInfo(FileDescription fd) {
-    flickrFileView->addFile(fd);
+void MainWindow::fileUploaded(const FileDescription &fd, const QString &fileName) {
+    if(fd.id.isEmpty()) {
+        QMessageBox::critical(this, "Error", "Unable to upload file: " + fileName);
+        uploadMap.remove(fileName);
+    } else {
+        FileToUpload &ftup = uploadMap[fileName];
+        BigFileDescription &bfd = uploadFilePartMap[fileName];
+        bfd.append(fd);
+        if(ftup.offset == -1) {
+            uploadMap.remove(fileName);
+            flickrFileView->addFile(bfd);
+            uploadFilePartMap.remove(fileName);
+        } else {
+            converter->encodeFile(fileName, ftup);
+            flickrAPI->uploadFile(ftup.getFileName(), ftup.byteArray, fileName);
+        }
+    }
 }
+
+//void MainWindow::showFileInfo(FileDescription fd) {
+//    flickrFileView->addFile(BigFileDescription(fd));
+//}
 
 //----------------------------------------------------------------------------------
 
@@ -122,25 +147,19 @@ void MainWindow::authResult(bool res) {
 
 //----------------------------------------------------------------------------------
 
-void MainWindow::fileListLoaded(QList<FileDescription> files) {
+void MainWindow::fileListLoaded(QList<BigFileDescription> files) {
+    cDialog->setText("Initializing...");
+    for(int i = 0; i < files.size(); ++i) {
+        files[i][0].icon = getFileIcon(files[i][0].getCroppedName());
+    }
     cDialog->hide();
     flickrFileView->setFileList(files);
-//    this->uploadFile("D:/rescue2usb.exe");
-//    flickrAPI->getFile(files.at(0));
-}
-
-void MainWindow::fileUploaded(QString id) {
-    if(id.isEmpty()) {
-        QMessageBox::critical(this, "Error", "Unable to uload file");
-    } else {
-        flickrAPI->getFileInfo(id);
-    }
 }
 
 //----------------------------------------------------------------------------------
 
-void MainWindow::downloadFile(const FileDescription &fd) {
-    downloadFileName = QFileDialog::getSaveFileName(this, "Download file", fd.getCroppedName());
+void MainWindow::downloadFile(const BigFileDescription &fd) {
+    QString downloadFileName = QFileDialog::getSaveFileName(this, "Download file", fd.at(0).getCroppedName());
     if(downloadFileName.isEmpty()) return;
 
     if(QFile::exists(downloadFileName)) {
@@ -148,17 +167,22 @@ void MainWindow::downloadFile(const FileDescription &fd) {
         tmp.remove();
     }
 
-    flickrAPI->getFile(fd);
+    flickrAPI->getFile(fd.first(), downloadFileName);
+    downloadFileMap[downloadFileName] = fd.mid(1);
 }
 
-void MainWindow::fileDownloaded(QByteArray content) {
-    bool res = converter->decodeFile(downloadFileName, content);
-    if(res){
-        statusBar()->showMessage("File downloaded");
-        qDebug() << "ok";
-    }
-    else{
-        QMessageBox::critical(this, "Error", "Unable to decode");
+void MainWindow::fileDownloaded(const QByteArray &content, const QString &fileName) {
+    BigFileDescription &fd = downloadFileMap[fileName];
+    if(!converter->decodeFile(fileName, content)) {
+        QMessageBox::critical(this, "Error", "Unable to decode file: " + fileName);
+    } else {
+        if(fd.isEmpty()) {
+            statusBar()->showMessage("File downloaded");
+            downloadFileMap.remove(fileName);
+        } else {
+            flickrAPI->getFile(fd.first(), fileName);
+            fd.pop_front();
+        }
     }
 }
 
@@ -168,6 +192,54 @@ void MainWindow::uploadTriggered() {
     QStringList fileNames = QFileDialog::getOpenFileNames(this, "Select files");
     for(QStringList::Iterator fn = fileNames.begin(); fn != fileNames.end(); ++fn) uploadFile(*fn);
 }
+
+//----------------------------------------------------------------------------------
+
+#ifdef Q_WS_WIN
+
+#include <windows.h>
+#include <shellapi.h>
+#include <QFileIconProvider>
+
+QIcon MainWindow::getFileIcon(const QString &fileName) const {
+    int p = fileName.lastIndexOf('.');
+    if(p < 0 || p == fileName.size() - 1) {
+        QFileIconProvider fip;
+        return fip.icon(QFileIconProvider::File);
+    }
+    QString ext = fileName.right(fileName.size() - p - 1);
+
+    QDir cacheDir("cache");
+    if(!cacheDir.exists()) QDir::current().mkdir("cache");
+    if(cacheDir.exists(ext)) return QIcon(QPixmap("cache/" + ext, "PNG"));
+
+    if(!QFile::exists(fileName)) {
+        QFileIconProvider fip;
+        return fip.icon(QFileIconProvider::File);
+    }
+
+    SHFILEINFO fi;
+    QString pcopy(fileName);
+    pcopy.replace('/', '\\');
+    wchar_t *fn = new wchar_t[pcopy.size() + 1];
+    fn[pcopy.size()] = 0;
+    pcopy.toWCharArray(fn);
+    SHGetFileInfo(fn, 0, &fi, sizeof(fi), SHGFI_ICON);
+    delete[] fn;
+
+    QPixmap img = QPixmap::fromWinHICON(fi.hIcon);
+    img.save("cache/" + ext, "PNG");
+    return QIcon(img);
+}
+
+#else
+
+QIcon MainWindow::getFileIcon(const QString &fileName) const {
+    QFileIconProvider fip;
+    return fip.icon(QFileIconProvider::File);
+}
+
+#endif
 
 //----------------------------------------------------------------------------------
 
@@ -191,8 +263,8 @@ ConnectingDialog::ConnectingDialog(QWidget *parent) : QSplashScreen(parent) { /*
 }
 
 ConnectingDialog::~ConnectingDialog() {
-    loadingIconTimer->stop();
-    loadingIcon->deleteLater();
+//    loadingIconTimer->stop();
+//    loadingIcon->deleteLater();
 }
 
 void ConnectingDialog::setText(const QString &txt) {

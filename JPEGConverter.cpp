@@ -16,18 +16,19 @@ QByteArray JPEGConverter::convertJPEGBytesToBytes(QByteArray const &jpegdata){
     return QByteArray(jpegdata.mid(631));
 }
 
-qint32 JPEGConverter::encodeFile(QString const &inputFileName, FileToUpload &fileToUpload, qint32 offset){
+void JPEGConverter::encodeFile(QString const &inputFileName, FileToUpload &fileToUpload){
     QFile in(inputFileName);
     if("" == fileToUpload.sourceFileName){
         QFileInfo fi(in.fileName());
         fileToUpload.sourceFileName = fi.fileName();
     }
-    if(!in.open(QIODevice::ReadOnly)) return 0;
-    in.seek(offset);
+    if(!in.open(QIODevice::ReadOnly)) return;
+    in.seek(fileToUpload.offset);
     fileToUpload.byteArray = convertBytesToJPEGBytes(in.read(max_size));
     ++fileToUpload.partNumber;
-    if(!in.atEnd()) return offset + max_size;
-    else return -1;
+
+    if(!in.atEnd()) fileToUpload.offset += max_size;
+    else fileToUpload.offset = -1;
 }
 
 bool JPEGConverter::decodeFile(const QString &filename, const QByteArray &array){

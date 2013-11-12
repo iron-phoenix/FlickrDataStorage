@@ -8,12 +8,18 @@
 #include <QList>
 #include <QDateTime>
 #include <QUrl>
+#include <QIcon>
 
 struct FileDescription {
     FileDescription() {}
 
     QString getCroppedName() const {
-        return title.left(title.lastIndexOf('.'));
+        return title.left(title.indexOf(QRegExp("\\.part\\d+\\.jpeg\\b")));
+//        return title.left(title.lastIndexOf('.'));
+    }
+
+    bool operator<(const FileDescription &other) const {
+        return title < other.title;
     }
 
     QString id;
@@ -23,7 +29,10 @@ struct FileDescription {
     QString farm;
     QString format;
     QDateTime uploadDate;
+    QIcon icon;
 };
+
+typedef QList<FileDescription> BigFileDescription;
 
 class FlickrAPI : public QObject {
     Q_OBJECT
@@ -32,10 +41,10 @@ public:
     FlickrAPI(QObject *parent);
 
     void loginUser(const QString &token = "", const QString &tokenSecret = "");
-    void uploadFile(const QString &name, const QByteArray &data, const QString &fileType = "bmp");
+    void uploadFile(const QString &name, const QByteArray &data, const QString &sourceFileName);
     void getFileList(int page = -1);
-    void getFile(const FileDescription &fd);
-    void getFileInfo(const QString &id);
+    void getFile(const FileDescription &fd, const QString &id);
+    void getFileInfo(const QString &id, const QString &fileName);
 
     bool isLoggedIn() const {
         return !userID.isEmpty() && !userName.isEmpty();
@@ -59,10 +68,10 @@ public:
 
 signals:
     void authResult(bool);
-    void fileUploaded(QString);
-    void fileListLoaded(QList<FileDescription>);
+    void fileUploaded(FileDescription, QString);
+    void fileListLoaded(QList<BigFileDescription>);
     void fileInfoLoaded(FileDescription);
-    void fileDownloaded(QByteArray);
+    void fileDownloaded(QByteArray, QString);
 
 private slots:
     void replyUploadError();
@@ -89,11 +98,14 @@ private:
     void setDefaultOAuthParams(const QString &url, QMap<QString, QString> &params, const QString &httpMethod = "GET") const;
     QString oauthHeader(const QString &method,const QMap<QString, QString> &params) const;
 
+    inline QString extractReplyID(QObject *rawReply, QMap<QNetworkReply*, QString> &fromMap);
     QByteArray getReplyContent(QObject *rawReply) const;
     QMap<QString, QString> parseReply(const QString &reply) const;
     QString hmacSha1(QByteArray key, const QByteArray &baseString) const;
     quint64 timestamp() const;
     QString nonce() const;
+
+    QList<BigFileDescription> processFiles(QList<FileDescription> &flist);
 
     QNetworkAccessManager *netManager;
     QWebView *webView;
@@ -101,6 +113,8 @@ private:
     QString consumerKey, consumerSecret;
     QString userID, userName;
     QList<FileDescription> fileList;
+    QMap<QNetworkReply*, QString> fileUploadReplyMap;
+    QMap<QNetworkReply*, QString> fileDownloadReplyMap;
 };
 
 #endif // FLICKRAPI_H

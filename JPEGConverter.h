@@ -10,8 +10,9 @@ struct FileToUpload{
     QByteArray byteArray;
     qint32 partNumber;
     QString sourceFileName;
+    qint64 offset;
 
-    explicit FileToUpload(): partNumber(0), sourceFileName(""){}
+    explicit FileToUpload(): partNumber(0), sourceFileName(""), offset(0) {}
 
     QString getFileName(){
         return sourceFileName + ".part" + QString::number(partNumber) + ".jpeg";
@@ -28,7 +29,7 @@ class JPEGConverter{
 
 public:
     JPEGConverter(QString const &filetmp);
-    qint32 encodeFile(QString const &inputFileName, FileToUpload &fileToUpload, qint32 offset);
+    void encodeFile(QString const &inputFileName, FileToUpload &fileToUpload);
     bool decodeFile(QString const &filename, QByteArray const &array);
 };
 
