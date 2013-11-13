@@ -397,7 +397,7 @@ void MainWindow::updateUploadProgress(qint64 bytesLoaded, qint64 bytesTotal, con
 //        total += df.value().size();
 //    }
 //    QString dfcount = QString("Uploading: %1/%2   ").arg(uploadFilePartMap.size()).arg(total);
-    QString dfcount = QString("Uploading:  ");
+    QString dfcount = QString("Uploading  ");
 
     lbUploading->setText(dfcount);
     pbUploading->setValue( ((double)sizeUploaded / (double)sizeToUpload) * 100 );

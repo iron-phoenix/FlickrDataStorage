@@ -39,6 +39,7 @@ void FlickrFileView::setFileList(const QList<BigFileDescription> &list) {
 }
 
 void FlickrFileView::addFile(const BigFileDescription &fd) {
+    QMutexLocker lock(&fileListLock);
     fileList[fd.at(0).id] = fd;
     QStandardItem *item = new QStandardItem(fd.at(0).icon, fd.at(0).getCroppedName());
     item->setData(fd.at(0).id);
@@ -48,6 +49,7 @@ void FlickrFileView::addFile(const BigFileDescription &fd) {
 }
 
 void FlickrFileView::deleteFile(const QString &id) {
+    QMutexLocker lock(&fileListLock);
     QMap<QString, BigFileDescription>::Iterator fi = fileList.find(id);
     if(fi != fileList.end()) {
         QList<QStandardItem*> names = fileModel->findItems(fi->at(0).getCroppedName());
@@ -93,13 +95,6 @@ void FlickrFileView::keyReleaseEvent(QKeyEvent *event) {
     if(event->key() == Qt::Key_Delete) {
         deleteFileTriggered();
         event->accept();
-//        break;
-//    case Qt::Key_Return: case Qt::Key_Enter:
-//        downloadFileTriggered();
-//        event->accept();
-//        break;
-//    default:
-//        break;
     }
 }
 

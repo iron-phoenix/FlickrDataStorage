@@ -6,6 +6,7 @@
 #include <QResizeEvent>
 #include <QStandardItemModel>
 #include <QListView>
+#include <QMutex>
 
 #include "flickrapi.h"
 
@@ -40,6 +41,7 @@ private:
     QAction *actGetFile, *actDelFile, *actUploadFile;
     QStandardItemModel *fileModel;
     QMap<QString, BigFileDescription> fileList;
+    QMutex fileListLock;    //add some thread safety, just for example :)
 };
 
 #endif // FLICKRFILEVIEW_H
