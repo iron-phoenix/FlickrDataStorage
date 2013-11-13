@@ -23,6 +23,7 @@ FlickrFileView::FlickrFileView(QWidget *parent) : QListView(parent) {
     this->setGridSize(QSize(120, 70));
     this->setMovement(QListView::Snap);
     this->setResizeMode(QListView::Adjust);
+    this->setSelectionMode(QListView::ExtendedSelection);
     this->setModel(fileModel);
 }
 
@@ -90,17 +91,16 @@ void FlickrFileView::mouseDoubleClickEvent(QMouseEvent *event) {
 }
 
 void FlickrFileView::keyReleaseEvent(QKeyEvent *event) {
-    switch(event->key()) {
-    case Qt::Key_Delete:
+    if(event->key() == Qt::Key_Delete) {
         deleteFileTriggered();
         event->accept();
-        break;
-    case Qt::Key_Return: case Qt::Key_Enter:
-        downloadFileTriggered();
-        event->accept();
-        break;
-    default:
-        break;
+//        break;
+//    case Qt::Key_Return: case Qt::Key_Enter:
+//        downloadFileTriggered();
+//        event->accept();
+//        break;
+//    default:
+//        break;
     }
 }
 

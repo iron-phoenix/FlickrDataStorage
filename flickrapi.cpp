@@ -296,7 +296,7 @@ void FlickrAPI::deleteFile(const FileDescription &fd, const QString &fileName) {
 
     QNetworkReply *reply = netManager->get(req);
     fileDeleteReplyMap[reply] = fileName;
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDownloadError()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDeleteError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyDeleteFileFinished()));
 }
 
@@ -337,7 +337,7 @@ void FlickrAPI::getFileList(int page) {
     req.setRawHeader("Authorization", oauthHeader("http://api.flickr.com/services/rest", requestParams).toAscii());
 
     QNetworkReply *reply = netManager->get(req);
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDownloadError()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyGenericError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyGetFileListFinished()));
 }
 
@@ -391,7 +391,7 @@ void FlickrAPI::getFileInfo(const QString &id, const QString &fileName) {
 
     QNetworkReply *reply = netManager->get(req);
     fileUploadReplyMap[reply] = fileName;
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDownloadError()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyUploadError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyGetFileInfoFinished()));
 }
 
@@ -453,25 +453,36 @@ void FlickrAPI::replyGetFileFinished() {
 //----------------------------------------------------------------------------------
 
 void FlickrAPI::replyUploadError() {
-    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
-    reply->disconnect(this);
-    qDebug() << reply->errorString();
-    reply->deleteLater();
+    QString fileName = extractReplyID(sender(), fileUploadReplyMap);
+    QString errMsg = getReplyError(sender());
+    emit uploadError(errMsg, fileName);
 }
 
 void FlickrAPI::replyDownloadError() {
-    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
-    reply->disconnect(this);
-    qDebug() << reply->errorString();
-    reply->deleteLater();
+    QString fileName = extractReplyID(sender(), fileDownloadReplyMap);
+    QString errMsg = getReplyError(sender());
+    emit downloadError(errMsg, fileName);
+}
+
+void FlickrAPI::replyDeleteError() {
+    QString fileName = extractReplyID(sender(), fileDeleteReplyMap);
+    QString errMsg = getReplyError(sender());
+    emit deleteError(errMsg, fileName);
 }
 
 void FlickrAPI::replyAuthError() {
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
     reply->disconnect(this);
-    qDebug() << reply->errorString();
     reply->deleteLater();
     emit authResult(false);
+}
+
+void FlickrAPI::replyGenericError() {
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+    QString errMsg = reply->errorString();
+    reply->disconnect(this);
+    reply->deleteLater();
+    emit genericError(errMsg);
 }
 
 //----------------------------------------------------------------------------------
@@ -503,6 +514,15 @@ QByteArray FlickrAPI::getReplyContent(QObject *rawReply) const {
     qreply->disconnect(this);
     qreply->deleteLater();
     return reply;
+}
+
+QString FlickrAPI::getReplyError(QObject *rawReply) const {
+    QNetworkReply *reply = qobject_cast<QNetworkReply*>(rawReply);
+    QString errMsg = reply->errorString();
+    reply->disconnect(this);
+    reply->deleteLater();
+    qDebug() << errMsg;
+    return errMsg;
 }
 
 QMap<QString, QString> FlickrAPI::parseReply(const QString &reply) const {

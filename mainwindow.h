@@ -63,6 +63,10 @@ private slots:
     void updateDownloadProgress(qint64 bytesLoaded, qint64 bytesTotal, const QString &fileName);
     void updateUploadProgress(qint64 bytesLoaded, qint64 bytesTotal, const QString &fileName);
 
+    void downloadError(const QString &msg, const QString &fileName);
+    void uploadError(const QString &msg, const QString &fileName);
+    void deleteError(const QString &msg, const QString &fileName);
+
     void loginUser();
     void logoutUser();
     void uploadTriggered();
@@ -71,6 +75,8 @@ private slots:
 
 private:
     QIcon getFileIcon(const QString &fileName) const;
+    void removeFromDownloadMaps(const QString &fileName);
+    void removeFromUploadMaps(const QString &fileName, bool all = true);
 
     FlickrAPI *flickrAPI;
     ConnectingDialog *cDialog;

@@ -27,6 +27,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(flickrAPI, SIGNAL(fileDeleted(bool,QString)), this, SLOT(fileDeleted(bool,QString)));
     connect(flickrAPI, SIGNAL(downloadProgress(qint64,qint64,QString)), this, SLOT(updateDownloadProgress(qint64,qint64,QString)));
     connect(flickrAPI, SIGNAL(uploadProgress(qint64,qint64,QString)), this, SLOT(updateUploadProgress(qint64,qint64,QString)));
+    connect(flickrAPI, SIGNAL(downloadError(QString,QString)), this, SLOT(downloadError(QString,QString)));
+    connect(flickrAPI, SIGNAL(uploadError(QString,QString)), this, SLOT(uploadError(QString,QString)));
+    connect(flickrAPI, SIGNAL(deleteError(QString,QString)), this, SLOT(deleteError(QString,QString)));
+    connect(flickrAPI, SIGNAL(genericError(QString)), this, SLOT(logoutUser()));
 
     actUpload = new QAction("Upload files...", this);
     actUpload->setEnabled(false);
@@ -170,6 +174,28 @@ void MainWindow::logoutUser() {
     flickrFileView->deleteAll();
 }
 
+void MainWindow::authResult(bool res) {
+    if(res) {
+        actLogin->setText("Logout");
+        actLogin->disconnect(this, SLOT(loginUser()));
+        connect(actLogin, SIGNAL(triggered()), this, SLOT(logoutUser()));
+
+        this->setAcceptDrops(true);
+        flickrFileView->setEnabled(true);
+        actUpload->setEnabled(true);
+        lbUserID->setText(QString("Logged in as <b><a href=\"loggedin\">%1</a></b>  ").arg(flickrAPI->getUsername()));
+
+        QSettings appSettings("settings.ini", QSettings::IniFormat, this);
+        appSettings.setValue("auth_token", flickrAPI->getAuthToken());
+        appSettings.setValue("auth_secret", flickrAPI->getAuthSecret());
+        cDialog->setText("Loading file list...");
+        flickrAPI->getFileList();
+    } else {
+        cDialog->hide();
+        QMessageBox::critical(this, "Error", "Authentication failed");
+    }
+}
+
 void MainWindow::showLoginLinkMenu(const QString &link) {
     if(link == "login") {
         loginUser();
@@ -204,17 +230,14 @@ void MainWindow::uploadFile(const QString &fileName) {
 
 void MainWindow::fileUploaded(const FileDescription &fd, const QString &fileName) {
     if(fd.id.isEmpty()) {
-        QMessageBox::critical(this, "Error", "Unable to upload file: " + fileName);
-        uploadMap.remove(fileName);
+        QMessageBox::critical(this, "Upload error", "Unable to upload file: " + fileName);
+        removeFromUploadMaps(fileName);
     } else {
         FileToUpload &ftup = uploadMap[fileName];
         BigFileDescription &bfd = uploadFilePartMap[fileName];
         bfd.append(fd);
 
-        sizeToUpload -= uploadSizeMap[fileName];
-        sizeUploaded -= currentUploadSizeMap[fileName];
-        uploadSizeMap.remove(fileName);
-        currentUploadSizeMap.remove(fileName);
+        removeFromUploadMaps(fileName, false);
 
         if(ftup.offset == -1) {
             uploadMap.remove(fileName);
@@ -227,34 +250,36 @@ void MainWindow::fileUploaded(const FileDescription &fd, const QString &fileName
         }
     }
 
-    if(uploadMap.empty()) {
+    if(uploadMap.isEmpty()) {
         pbUploading->hide();
         lbUploading->hide();
     }
 }
 
-//----------------------------------------------------------------------------------
+void MainWindow::uploadError(const QString &msg, const QString &fileName) {
+    removeFromUploadMaps(fileName);
+    QMessageBox::critical(this, "Upload error", QString("Unable to upload file %1: %2").arg(fileName).arg(msg));
+}
 
-void MainWindow::authResult(bool res) {
-    if(res) {
-        actLogin->setText("Logout");
-        actLogin->disconnect(this, SLOT(loginUser()));
-        connect(actLogin, SIGNAL(triggered()), this, SLOT(logoutUser()));
+void MainWindow::removeFromUploadMaps(const QString &fileName, bool all) {
+    sizeToUpload -= uploadSizeMap[fileName];
+    sizeUploaded -= currentUploadSizeMap[fileName];
+    uploadSizeMap.remove(fileName);
+    currentUploadSizeMap.remove(fileName);
 
-        this->setAcceptDrops(true);
-        flickrFileView->setEnabled(true);
-        actUpload->setEnabled(true);
-        lbUserID->setText(QString("Logged in as <b><a href=\"loggedin\">%1</a></b>  ").arg(flickrAPI->getUsername()));
-
-        QSettings appSettings("settings.ini", QSettings::IniFormat, this);
-        appSettings.setValue("auth_token", flickrAPI->getAuthToken());
-        appSettings.setValue("auth_secret", flickrAPI->getAuthSecret());
-        cDialog->setText("Loading file list...");
-        flickrAPI->getFileList();
-    } else {
-        cDialog->hide();
-        QMessageBox::critical(this, "Error", "Authentication failed");
+    if(all) {
+        uploadMap.remove(fileName);
+        uploadFilePartMap.remove(fileName);
+        if(uploadMap.isEmpty()) {
+            pbUploading->hide();
+            lbUploading->hide();
+        }
     }
+}
+
+void MainWindow::uploadTriggered() {
+    QStringList fileNames = QFileDialog::getOpenFileNames(this, "Select files");
+    for(QStringList::Iterator fn = fileNames.begin(); fn != fileNames.end(); ++fn) uploadFile(*fn);
 }
 
 //----------------------------------------------------------------------------------
@@ -264,8 +289,8 @@ void MainWindow::fileListLoaded(QList<BigFileDescription> files) {
     for(int i = 0; i < files.size(); ++i) {
         files[i][0].icon = getFileIcon(files[i][0].getCroppedName());
     }
-    cDialog->hide();
     flickrFileView->setFileList(files);
+    cDialog->hide();
 }
 
 //----------------------------------------------------------------------------------
@@ -280,8 +305,6 @@ void MainWindow::downloadFile(const BigFileDescription &fd) {
     }
 
     if(downloadSizeMap.isEmpty()) {
-        pbDownloading->setValue(0);
-        lbDownloading->setText("Downloading files: 1/0  ");
         pbDownloading->show();
         lbDownloading->show();
     }
@@ -293,20 +316,12 @@ void MainWindow::downloadFile(const BigFileDescription &fd) {
 void MainWindow::fileDownloaded(const QByteArray &content, const QString &fileName) {
     BigFileDescription &fd = downloadFileMap[fileName];
     if(!converter->decodeFile(fileName, content)) {
+        removeFromDownloadMaps(fileName);
         QMessageBox::critical(this, "Error", "Unable to decode file: " + fileName);
     } else {
         if(fd.isEmpty()) {
-            sizeToDownload -= downloadSizeMap[fileName];
-            sizeDownloaded -= currentDownloadSizeMap[fileName];
-            downloadSizeMap.remove(fileName);
-            currentDownloadSizeMap.remove(fileName);
-            if(downloadSizeMap.empty()) {
-                pbDownloading->hide();
-                lbDownloading->hide();
-            }
-
+            removeFromDownloadMaps(fileName);
             statusBar()->showMessage("File downloaded: " + fileName, 3000);
-            downloadFileMap.remove(fileName);
         } else {
             flickrAPI->getFile(fd.first(), fileName);
             fd.removeFirst();
@@ -314,11 +329,21 @@ void MainWindow::fileDownloaded(const QByteArray &content, const QString &fileNa
     }
 }
 
-//----------------------------------------------------------------------------------
+void MainWindow::downloadError(const QString &msg, const QString &fileName) {
+    removeFromDownloadMaps(fileName);
+    QMessageBox::critical(this, "Download error", QString("Unable to download file %1: %2").arg(fileName).arg(msg));
+}
 
-void MainWindow::uploadTriggered() {
-    QStringList fileNames = QFileDialog::getOpenFileNames(this, "Select files");
-    for(QStringList::Iterator fn = fileNames.begin(); fn != fileNames.end(); ++fn) uploadFile(*fn);
+void MainWindow::removeFromDownloadMaps(const QString &fileName) {
+    sizeToDownload -= downloadSizeMap[fileName];
+    sizeDownloaded -= currentDownloadSizeMap[fileName];
+    downloadSizeMap.remove(fileName);
+    currentDownloadSizeMap.remove(fileName);
+    if(downloadSizeMap.empty()) {
+        pbDownloading->hide();
+        lbDownloading->hide();
+    }
+    downloadFileMap.remove(fileName);
 }
 
 //----------------------------------------------------------------------------------
@@ -351,11 +376,12 @@ void MainWindow::updateUploadProgress(qint64 bytesLoaded, qint64 bytesTotal, con
     sizeUploaded += bytesLoaded - currentUploadSizeMap[fileName];
     currentUploadSizeMap[fileName] = bytesLoaded;
 
-    int total = 0;
-    for(QMap<QString, BigFileDescription>::ConstIterator df = uploadFilePartMap.begin(); df != uploadFilePartMap.end(); ++df) {
-        total += df.value().size();
-    }
-    QString dfcount = QString("Uploading: %1/%2   ").arg(uploadFilePartMap.size()).arg(total);
+//    int total = 0;
+//    for(QMap<QString, BigFileDescription>::ConstIterator df = uploadFilePartMap.begin(); df != uploadFilePartMap.end(); ++df) {
+//        total += df.value().size();
+//    }
+//    QString dfcount = QString("Uploading: %1/%2   ").arg(uploadFilePartMap.size()).arg(total);
+    QString dfcount = QString("Uploading:  ");
 
     lbUploading->setText(dfcount);
     pbUploading->setValue( ((double)sizeUploaded / (double)sizeToUpload) * 100 );
@@ -367,12 +393,11 @@ void MainWindow::deleteFile(const BigFileDescription &fd) {
     if(QMessageBox::Yes == QMessageBox::question(this, "Delete file", QString("Do you really want to delete %1?").arg(fd[0].getCroppedName()), QMessageBox::Yes, QMessageBox::No)) {
         flickrAPI->deleteFile(fd.first(), fd[0].id);
         deleteFileMap[fd[0].id] = fd.mid(1);
-        qDebug() << "delete file triggered";
     }
 }
 
 void MainWindow::fileDeleted(bool stat, const QString &fileName) {
-    BigFileDescription &fd = downloadFileMap[fileName];
+    BigFileDescription &fd = deleteFileMap[fileName];
     if(stat) {
         if(fd.empty()) {
             flickrFileView->deleteFile(fileName);
@@ -383,10 +408,14 @@ void MainWindow::fileDeleted(bool stat, const QString &fileName) {
             fd.removeFirst();
         }
     } else {
-        QString name = fd.isEmpty() ? QString("ID " + fileName) : fd.first().getCroppedName();
-        QMessageBox::critical(this, "Error", name);
-        deleteFileMap.remove(fileName);
+        deleteError("bad file id", fileName);
     }
+}
+
+void MainWindow::deleteError(const QString &msg, const QString &fileName) {
+    QString name = deleteFileMap[fileName].isEmpty() ? QString("ID " + fileName) : deleteFileMap[fileName].first().getCroppedName();
+    deleteFileMap.remove(fileName);
+    QMessageBox::critical(this, "Deletion error", QString("Unable to delete file %1: %2").arg(name).arg(msg));
 }
 
 //----------------------------------------------------------------------------------

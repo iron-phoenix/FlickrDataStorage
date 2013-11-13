@@ -75,13 +75,21 @@ signals:
     void fileDownloaded(QByteArray, QString);
     void fileDeleted(bool, QString);
 
+    void genericError(QString);
+    void downloadError(QString, QString);
+    void uploadError(QString, QString);
+    void deleteError(QString, QString);
+
     void downloadProgress(qint64, qint64, QString);
     void uploadProgress(qint64, qint64, QString);
 
 private slots:
+    //QSignalMapper should be used, but I have no time for that
     void replyUploadError();
     void replyDownloadError();
     void replyAuthError();
+    void replyDeleteError();
+    void replyGenericError();
     void cancelLogin();
     void replyRequestTokenFinished();
     void replyAccessTokenFinished();
@@ -109,6 +117,7 @@ private:
 
     inline QString extractReplyID(QObject *rawReply, QMap<QNetworkReply*, QString> &fromMap);
     QByteArray getReplyContent(QObject *rawReply) const;
+    QString getReplyError(QObject *rawReply) const;
     QMap<QString, QString> parseReply(const QString &reply) const;
     QString hmacSha1(QByteArray key, const QByteArray &baseString) const;
     quint64 timestamp() const;
