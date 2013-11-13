@@ -47,7 +47,7 @@ void FlickrAPI::setDefaultOAuthParams(const QString &url, QMap<QString, QString>
 
     QString hashKey = consumerSecret + "&" + oauthTokenSecret;
     QString baseString = baseStringFromURL(url, params, httpMethod);
-    QString sign = QUrl::toPercentEncoding(hmacSha1(hashKey.toAscii(), baseString.toAscii())).constData();
+    QString sign = QUrl::toPercentEncoding(hmacSha1(hashKey.toUtf8(), baseString.toUtf8())).constData();
     params["oauth_signature"] = sign;
 }
 
@@ -62,7 +62,7 @@ void FlickrAPI::getRequestToken() {
 
     QNetworkRequest req = QNetworkRequest(QUrl(methodURL));
     req.setRawHeader("User-Agent", "Mozilla/5.0");
-    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toAscii());
+    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toUtf8());
 
     QNetworkReply *reply = netManager->get(req);
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyAuthError()));
@@ -132,7 +132,7 @@ void FlickrAPI::getAccessToken() {
 
     QNetworkRequest req = QNetworkRequest(QUrl(methodURL));
     req.setRawHeader("User-Agent", "Mozilla/5.0");
-    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toAscii());
+    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toUtf8());
 
     QNetworkReply *reply = netManager->get(req);
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyAuthError()));
@@ -152,8 +152,8 @@ void FlickrAPI::replyAccessTokenFinished() {
         qDebug() << "Unable to get Access Token";
         emit authResult(false);
     } else {
-        userName = QUrl::fromPercentEncoding(tokens["username"].toAscii());
-        userID = QUrl::fromPercentEncoding(tokens["user_nsid"].toAscii());
+        userName = QUrl::fromPercentEncoding(tokens["username"].toUtf8());
+        userID = QUrl::fromPercentEncoding(tokens["user_nsid"].toUtf8());
         qDebug() << "Looged in as" << userName << "id: " << userID;
         qDebug() << oauthToken << oauthTokenSecret;
         emit authResult(true);
@@ -172,8 +172,8 @@ void FlickrAPI::testLogin() {
 
     QNetworkRequest req(QUrl(urlFromParams(methodURL, requestParams)));
     req.setRawHeader("User-Agent", "Mozilla/5.0");
-    req.setRawHeader("Authorization", oauthHeader("http://api.flickr.com/services/rest", requestParams).toAscii());
-//    req.setRawHeader("Authorization", oauthHeader("http://www.flickr.com/services/oauth/access_token", requestParams).toAscii());
+    req.setRawHeader("Authorization", oauthHeader("http://api.flickr.com/services/rest", requestParams).toUtf8());
+//    req.setRawHeader("Authorization", oauthHeader("http://www.flickr.com/services/oauth/access_token", requestParams).toUtf8());
 
     QNetworkReply *reply = netManager->get(req);
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyAuthError()));
@@ -212,34 +212,21 @@ void FlickrAPI::uploadFile(const QString &name, const QByteArray &data, const QS
     QString methodURL = "http://up.flickr.com/services/upload";
 
     QMap<QString, QString> requestParams;
-//    requestParams["oauth_token"] = oauthToken;
-//    requestParams["title"] = name;
-//    setDefaultOAuthParams(methodURL, requestParams, "POST");
-
-    requestParams["oauth_nonce"] = nonce();
-    requestParams["oauth_timestamp"] = QString::number(timestamp());
-    requestParams["oauth_consumer_key"] = consumerKey;
     requestParams["oauth_token"] = oauthToken;
-    requestParams["oauth_signature_method"] = "HMAC-SHA1";
-    requestParams["oauth_version"] = "1.0";
     requestParams["title"] = name;
-
-    QString hashKey = consumerSecret + "&" + oauthTokenSecret;
-    QString baseString = baseStringFromURL("http://up.flickr.com/services/upload", requestParams, "POST");
-    QString sign = QUrl::toPercentEncoding(hmacSha1(hashKey.toAscii(), baseString.toAscii())).constData();
-    requestParams["oauth_signature"] = sign;
+    setDefaultOAuthParams(methodURL, requestParams, "POST");
 
     QString boundary = "---------------------------" + QString::number(qrand()) + QString::number(qrand()) + QString::number(qrand());
     QString endBoundary = "\r\n--" + boundary + "--\r\n";
     QString contentType = "multipart/form-data; boundary=" + boundary;
     boundary = "--" + boundary + "\r\n";
 
-    QByteArray reqData(boundary.toAscii());
-    reqData.append(QString("Content-Disposition: form-data; name=\"title\"\r\n\r\n").toAscii());
-    reqData.append(name.toAscii());
+    QByteArray reqData(boundary.toUtf8());
+    reqData.append(QString("Content-Disposition: form-data; name=\"title\"\r\n\r\n").toUtf8());
+    reqData.append(name.toUtf8());
     boundary = "\r\n" + boundary;
     reqData.append(boundary);
-    reqData.append(QString("Content-Disposition: form-data; name=\"photo\"; filename=\"%1\"\r\n").arg(name));
+    reqData.append(QString("Content-Disposition: form-data; name=\"photo\"; filename=\"%1\"\r\n").arg(name).toUtf8());
     reqData.append(QString("Content-Type: image/jpeg\r\n\r\n"));
     reqData.append(data);
     reqData.append(endBoundary);
@@ -247,7 +234,7 @@ void FlickrAPI::uploadFile(const QString &name, const QByteArray &data, const QS
     QNetworkRequest req(QUrl("http://up.flickr.com/services/upload"));
     req.setRawHeader("Host", "up.flickr.com");
     req.setRawHeader("User-Agent", "Mozilla/5.0");
-    req.setRawHeader("Authorization", oauthHeader("http://up.flickr.com/services/upload", requestParams).toAscii());
+    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toUtf8());
     req.setHeader(QNetworkRequest::ContentTypeHeader, contentType);
     req.setHeader(QNetworkRequest::ContentLengthHeader, reqData.size());
 
@@ -256,7 +243,6 @@ void FlickrAPI::uploadFile(const QString &name, const QByteArray &data, const QS
     connect(reply, SIGNAL(uploadProgress(qint64,qint64)), this, SLOT(emitUploadProgress(qint64,qint64)));
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyUploadError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyUploadFinished()));
-//    connect(reply, SIGNAL(uploadProgress(qint64,qint64)), this, SLOT(emitUploadProgress(qint64,qint64)));
 }
 
 void FlickrAPI::replyUploadFinished() {
@@ -292,7 +278,7 @@ void FlickrAPI::deleteFile(const FileDescription &fd, const QString &fileName) {
 
     QNetworkRequest req(QUrl(urlFromParams(methodURL, requestParams)));
     req.setRawHeader("User-Agent", "Mozilla/5.0");
-    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toAscii());
+    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toUtf8());
 
     QNetworkReply *reply = netManager->get(req);
     fileDeleteReplyMap[reply] = fileName;
@@ -334,7 +320,7 @@ void FlickrAPI::getFileList(int page) {
 //    QNetworkRequest req(QUrl(methodURL + "?method=flickr.photos.search&user_id=" + userID));
     QNetworkRequest req(QUrl(urlFromParams(methodURL, requestParams)));
     req.setRawHeader("User-Agent", "Mozilla/5.0");
-    req.setRawHeader("Authorization", oauthHeader("http://api.flickr.com/services/rest", requestParams).toAscii());
+    req.setRawHeader("Authorization", oauthHeader("http://api.flickr.com/services/rest", requestParams).toUtf8());
 
     QNetworkReply *reply = netManager->get(req);
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyGenericError()));
@@ -387,7 +373,7 @@ void FlickrAPI::getFileInfo(const QString &id, const QString &fileName) {
 
     QNetworkRequest req(QUrl(urlFromParams(methodURL, requestParams)));
     req.setRawHeader("User-Agent", "Mozilla/5.0");
-    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toAscii());
+    req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toUtf8());
 
     QNetworkReply *reply = netManager->get(req);
     fileUploadReplyMap[reply] = fileName;
@@ -494,7 +480,7 @@ quint64 FlickrAPI::timestamp() const {
 QString FlickrAPI::nonce() const {
     return QString::number(qrand() % timestamp() + 1);
 //    QCryptographicHash md5(QCryptographicHash::Md5);
-//    md5.addData(QString::number(timestamp()).toAscii());
+//    md5.addData(QString::number(timestamp()).toUtf8());
 //    return md5.result().toBase64().constData();
 }
 
@@ -540,7 +526,7 @@ QMap<QString, QString> FlickrAPI::parseReply(const QString &reply) const {
 QString FlickrAPI::baseStringFromURL(const QString &method, const QMap<QString, QString> &params, const QString &httpMethod) const {
     QString urlString;
     for(QMap<QString, QString>::ConstIterator p = params.begin(); p != params.end(); ++p) {
-        urlString += "&" + p.key() + "=" + p.value();
+        urlString += "&" + p.key() + "=" + QString(QUrl::toPercentEncoding(p.value()));
     }
     urlString.remove(0, 1);
 

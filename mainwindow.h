@@ -10,17 +10,18 @@
 #include <QMovie>
 #include <QTimer>
 #include <QLabel>
+#include <QIcon>
+#include <QDialog>
 
 #include "flickrapi.h"
 #include "flickrfileview.h"
 #include "JPEGConverter.h"
 
-class ConnectingDialog : public QSplashScreen {
+class LoadingWidget : public QWidget {
     Q_OBJECT
 
 public:
-    ConnectingDialog(QWidget *parent = 0);
-    ~ConnectingDialog();
+    LoadingWidget(QWidget *parent = 0);
 
 public slots:
     void setText(const QString &txt);
@@ -79,14 +80,16 @@ private:
     void removeFromUploadMaps(const QString &fileName, bool all = true);
 
     FlickrAPI *flickrAPI;
-    ConnectingDialog *cDialog;
+    QDialog *windowLocker;
     JPEGConverter *converter;
 
     FlickrFileView *flickrFileView;
     QAction *actLogin, *actUpload, *actExit, *actKeepLoggedIn;
     QLabel *lbUserID, *lbDownloading, *lbUploading;
     QProgressBar *pbDownloading, *pbUploading;
+    LoadingWidget *lwLoading;
     QPoint mouseClickPos;
+    QIcon defaultIcon;
 
     QMap<QString, FileToUpload> uploadMap;
     QMap<QString, BigFileDescription> uploadFilePartMap;

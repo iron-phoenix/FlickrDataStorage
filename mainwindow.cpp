@@ -1,8 +1,8 @@
 #include "mainwindow.h"
 
 #include <QDebug>
-#include <QSettings>
 #include <QHBoxLayout>
+#include <QSettings>
 #include <QFile>
 #include <QMenuBar>
 #include <QMenu>
@@ -10,7 +10,6 @@
 #include <QFileDialog>
 #include <QStatusBar>
 #include <QMessageBox>
-#include <QIcon>
 #include <QPixmap>
 #include <QFileIconProvider>
 #include <QApplication>
@@ -55,7 +54,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     fileMenu->addSeparator();
     fileMenu->addAction(actExit);
 
-    cDialog = new ConnectingDialog(this);
+    windowLocker = new QDialog(this, Qt::SplashScreen);
+    windowLocker->resize(0, 0);
+    windowLocker->setModal(true);
+
     converter = new JPEGConverter(":/tmp.jpg");
 
     pbDownloading = new QProgressBar(this);
@@ -68,14 +70,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     lbDownloading = new QLabel(this);
     lbUploading = new QLabel(this);
+    lwLoading = new LoadingWidget(this);
     statusBar()->addWidget(lbDownloading);
     statusBar()->addWidget(pbDownloading);
     statusBar()->addWidget(lbUploading);
     statusBar()->addWidget(pbUploading);
+    this->statusBar()->addWidget(lwLoading);
     lbDownloading->hide();
     pbDownloading->hide();
     lbUploading->hide();
     pbUploading->hide();
+    lwLoading->hide();
 
     flickrFileView = new FlickrFileView(this);
     connect(flickrFileView, SIGNAL(requestDownload(BigFileDescription)), this, SLOT(downloadFile(BigFileDescription)));
@@ -87,11 +92,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     lbUserID = new QLabel("<b><a href=\"login\">not logged in</a>  </b>", this);
     connect(lbUserID, SIGNAL(linkActivated(QString)), this, SLOT(showLoginLinkMenu(QString)));
+
     this->statusBar()->addPermanentWidget(lbUserID);
     this->statusBar()->setSizeGripEnabled(false);
 
     sizeToDownload = sizeDownloaded = 0;
     sizeToUpload = sizeUploaded = 0;
+
+    QFileIconProvider fip;
+#ifdef Q_WS_WIN
+    defaultIcon = fip.icon(QFileIconProvider::File).pixmap(40).scaled(40, 40);
+#else
+    defaultIcon = fip.icon(QFileIconProvider::File);
+#endif
 
     this->setWindowTitle("Flickr Data Storage");
     this->resize(510, 400);
@@ -132,8 +145,9 @@ void MainWindow::mousePressEvent(QMouseEvent *event) {
 //----------------------------------------------------------------------------------
 
 void MainWindow::loginUser() {
-    cDialog->setText("Logging in...");
-    cDialog->show();
+    lwLoading->setText("Logging in...");
+    lwLoading->show();
+    windowLocker->show();
 
     QSettings appSettings("settings.ini", QSettings::IniFormat, this);
     QString token = appSettings.value("auth_token").toString();
@@ -188,10 +202,11 @@ void MainWindow::authResult(bool res) {
         QSettings appSettings("settings.ini", QSettings::IniFormat, this);
         appSettings.setValue("auth_token", flickrAPI->getAuthToken());
         appSettings.setValue("auth_secret", flickrAPI->getAuthSecret());
-        cDialog->setText("Loading file list...");
+        lwLoading->setText("Loading file list...");
         flickrAPI->getFileList();
     } else {
-        cDialog->hide();
+        windowLocker->hide();
+        lwLoading->hide();
         QMessageBox::critical(this, "Error", "Authentication failed");
     }
 }
@@ -285,12 +300,13 @@ void MainWindow::uploadTriggered() {
 //----------------------------------------------------------------------------------
 
 void MainWindow::fileListLoaded(QList<BigFileDescription> files) {
-    cDialog->setText("Initializing...");
+    lwLoading->setText("Initializing...");
     for(int i = 0; i < files.size(); ++i) {
         files[i][0].icon = getFileIcon(files[i][0].getCroppedName());
     }
     flickrFileView->setFileList(files);
-    cDialog->hide();
+    lwLoading->hide();
+    windowLocker->hide();
 }
 
 //----------------------------------------------------------------------------------
@@ -392,6 +408,10 @@ void MainWindow::updateUploadProgress(qint64 bytesLoaded, qint64 bytesTotal, con
 void MainWindow::deleteFile(const BigFileDescription &fd) {
     if(QMessageBox::Yes == QMessageBox::question(this, "Delete file", QString("Do you really want to delete %1?").arg(fd[0].getCroppedName()), QMessageBox::Yes, QMessageBox::No)) {
         flickrAPI->deleteFile(fd.first(), fd[0].id);
+        if(deleteFileMap.isEmpty()) {
+            lwLoading->setText("Deleteing file(s)...");
+            lwLoading->show();
+        }
         deleteFileMap[fd[0].id] = fd.mid(1);
     }
 }
@@ -402,6 +422,7 @@ void MainWindow::fileDeleted(bool stat, const QString &fileName) {
         if(fd.empty()) {
             flickrFileView->deleteFile(fileName);
             deleteFileMap.remove(fileName);
+            if(deleteFileMap.empty()) lwLoading->hide();
             statusBar()->showMessage("File deleted", 2000);
         } else {
             flickrAPI->deleteFile(fd.first(), fileName);
@@ -415,6 +436,7 @@ void MainWindow::fileDeleted(bool stat, const QString &fileName) {
 void MainWindow::deleteError(const QString &msg, const QString &fileName) {
     QString name = deleteFileMap[fileName].isEmpty() ? QString("ID " + fileName) : deleteFileMap[fileName].first().getCroppedName();
     deleteFileMap.remove(fileName);
+    if(deleteFileMap.empty()) lwLoading->hide();
     QMessageBox::critical(this, "Deletion error", QString("Unable to delete file %1: %2").arg(name).arg(msg));
 }
 
@@ -427,20 +449,13 @@ void MainWindow::deleteError(const QString &msg, const QString &fileName) {
 
 QIcon MainWindow::getFileIcon(const QString &fileName) const {
     int p = fileName.lastIndexOf('.');
-    if(p < 0 || p == fileName.size() - 1) {
-        QFileIconProvider fip;
-        return fip.icon(QFileIconProvider::File);
-    }
+    if(p < 0 || p == fileName.size() - 1) return defaultIcon;
     QString ext = fileName.right(fileName.size() - p - 1);
 
     QDir cacheDir("cache");
     if(!cacheDir.exists()) QDir::current().mkdir("cache");
     if(cacheDir.exists(ext)) return QIcon(QPixmap("cache/" + ext, "PNG"));
-
-    if(!QFile::exists(fileName)) {
-        QFileIconProvider fip;
-        return fip.icon(QFileIconProvider::File);
-    }
+    if(!QFile::exists(fileName)) return defaultIcon;
 
     SHFILEINFO fi;
     QString pcopy(fileName);
@@ -467,9 +482,8 @@ QIcon MainWindow::getFileIcon(const QString &fileName) const {
 
 //----------------------------------------------------------------------------------
 
-ConnectingDialog::ConnectingDialog(QWidget *parent) : QSplashScreen(parent) { /*Qt::SplashScreen | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint) {*/
+LoadingWidget::LoadingWidget(QWidget *parent) : QWidget(parent) {
     loadingIcon = new QMovie(":/loading.gif");
-    loadingIcon->jumpToFrame(0);
 
     loadingIconTimer = new QTimer(this);
     connect(loadingIconTimer, SIGNAL(timeout()), loadingIcon, SLOT(jumpToNextFrame()));
@@ -483,23 +497,19 @@ ConnectingDialog::ConnectingDialog(QWidget *parent) : QSplashScreen(parent) { /*
     QHBoxLayout *mlayout = new QHBoxLayout();
     mlayout->addWidget(lbIcon, 0);
     mlayout->addWidget(lbText, 1, Qt::AlignLeft);
+    mlayout->setContentsMargins(0, 0, 0, 0);
     this->setLayout(mlayout);
 }
 
-ConnectingDialog::~ConnectingDialog() {
-//    loadingIconTimer->stop();
-//    loadingIcon->deleteLater();
-}
-
-void ConnectingDialog::setText(const QString &txt) {
+void LoadingWidget::setText(const QString &txt) {
     lbText->setText(txt);
 }
 
-void ConnectingDialog::showEvent(QShowEvent *) {
+void LoadingWidget::showEvent(QShowEvent *) {
     loadingIcon->jumpToFrame(0);
     loadingIconTimer->start(75);
 }
 
-void ConnectingDialog::hideEvent(QHideEvent *) {
+void LoadingWidget::hideEvent(QHideEvent *) {
     loadingIconTimer->stop();
 }

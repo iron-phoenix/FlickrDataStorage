@@ -19,7 +19,6 @@ FlickrFileView::FlickrFileView(QWidget *parent) : QListView(parent) {
     this->setViewMode(QListView::IconMode);
     fileModel = new QStandardItemModel(0, 1);
 
-    this->setWordWrap(true);
     this->setGridSize(QSize(120, 70));
     this->setMovement(QListView::Snap);
     this->setResizeMode(QListView::Adjust);
