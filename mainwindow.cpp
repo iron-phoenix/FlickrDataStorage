@@ -14,6 +14,9 @@
 #include <QPixmap>
 #include <QFileIconProvider>
 #include <QApplication>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMouseEvent>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     flickrAPI = new FlickrAPI(this);
@@ -32,11 +35,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     actLogin = new QAction("Login", this);
     connect(actLogin, SIGNAL(triggered()), this, SLOT(loginUser()));
 
+    actKeepLoggedIn = new QAction("Keep me logged in", this);
+    actKeepLoggedIn->setCheckable(true);
+    QSettings appSettings("settings.ini", QSettings::IniFormat, this);
+    actKeepLoggedIn->setChecked(appSettings.value("keep_logged_in", false).toBool());
+
     actExit = new QAction("Exit", this);
     connect(actExit, SIGNAL(triggered()), qApp, SLOT(quit()));
 
     QMenu *fileMenu = menuBar()->addMenu("File");;
     fileMenu->addAction(actLogin);
+    fileMenu->addAction(actKeepLoggedIn);
+    fileMenu->addSeparator();
     fileMenu->addAction(actUpload);
     fileMenu->addSeparator();
     fileMenu->addAction(actExit);
@@ -71,7 +81,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     this->setCentralWidget(flickrFileView);
 
-    lbUserID = new QLabel("<b>not logged in  </b>", this);
+    lbUserID = new QLabel("<b><a href=\"login\">not logged in</a>  </b>", this);
+    connect(lbUserID, SIGNAL(linkActivated(QString)), this, SLOT(showLoginLinkMenu(QString)));
     this->statusBar()->addPermanentWidget(lbUserID);
     this->statusBar()->setSizeGripEnabled(false);
 
@@ -79,18 +90,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     sizeToUpload = sizeUploaded = 0;
 
     this->setWindowTitle("Flickr Data Storage");
-    this->resize(500, 400);
+    this->resize(510, 400);
 
-//    QTimer::singleShot(500, this, SLOT(loginUser()));
+    if(actKeepLoggedIn->isChecked()) QTimer::singleShot(500, this, SLOT(loginUser()));
 }
 
 MainWindow::~MainWindow() {
+    QSettings appSettings("settings.ini", QSettings::IniFormat, this);
+    appSettings.setValue("keep_logged_in", actKeepLoggedIn->isChecked());
 }
 
 //----------------------------------------------------------------------------------
-
-#include <QDragEnterEvent>
-#include <QDropEvent>
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
     if(event->mimeData()->hasFormat("text/uri-list")) {
@@ -110,6 +120,11 @@ void MainWindow::dropEvent(QDropEvent *event) {
     }
 }
 
+void MainWindow::mousePressEvent(QMouseEvent *event) {
+    mouseClickPos = event->globalPos();
+    QMainWindow::mousePressEvent(event);
+}
+
 //----------------------------------------------------------------------------------
 
 void MainWindow::loginUser() {
@@ -126,16 +141,45 @@ void MainWindow::logoutUser() {
     QSettings appSettings("settings.ini", QSettings::IniFormat, this);
     appSettings.setValue("auth_token", "");
     appSettings.setValue("auth_secret", "");
-    lbUserID->setText("<b>not logged in</b>  ");
+    lbUserID->setText("<b><a href=\"login\">not logged in</a>  </b>  ");
+
     flickrFileView->setEnabled(false);
     actUpload->setEnabled(false);
     this->setAcceptDrops(false);
+
+    uploadMap.clear();
+    uploadFilePartMap.clear();
+    downloadFileMap.clear();
+    deleteFileMap.clear();
+    downloadSizeMap.clear();
+    currentDownloadSizeMap.clear();
+    uploadSizeMap.clear();
+    currentUploadSizeMap.clear();
+    sizeToDownload = sizeDownloaded = 0;
+    sizeToUpload = sizeUploaded = 0;
+
+    pbDownloading->hide();
+    pbUploading->hide();
+    lbDownloading->hide();
+    lbUploading->hide();
 
     actLogin->setText("Login");
     actLogin->disconnect(this, SLOT(logoutUser()));
     connect(actLogin, SIGNAL(triggered()), this, SLOT(loginUser()));
 
     flickrFileView->deleteAll();
+}
+
+void MainWindow::showLoginLinkMenu(const QString &link) {
+    if(link == "login") {
+        loginUser();
+    } else {
+        QMenu m(this);
+        m.addAction(QString("ID: %1").arg(flickrAPI->getUserID()))->setEnabled(false);
+        m.addSeparator();
+        m.addAction(actLogin);
+        m.exec(mouseClickPos);
+    }
 }
 
 //----------------------------------------------------------------------------------
@@ -200,7 +244,7 @@ void MainWindow::authResult(bool res) {
         this->setAcceptDrops(true);
         flickrFileView->setEnabled(true);
         actUpload->setEnabled(true);
-        lbUserID->setText(QString("Logged in as <b>%1</b>  ").arg(flickrAPI->getUsername()));
+        lbUserID->setText(QString("Logged in as <b><a href=\"loggedin\">%1</a></b>  ").arg(flickrAPI->getUsername()));
 
         QSettings appSettings("settings.ini", QSettings::IniFormat, this);
         appSettings.setValue("auth_token", flickrAPI->getAuthToken());

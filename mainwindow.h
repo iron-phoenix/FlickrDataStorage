@@ -45,6 +45,7 @@ public:
     ~MainWindow();
 
 protected:
+    void mousePressEvent(QMouseEvent *event);
     void dragEnterEvent(QDragEnterEvent *event);
     void dropEvent(QDropEvent *event);
 
@@ -66,6 +67,8 @@ private slots:
     void logoutUser();
     void uploadTriggered();
 
+    void showLoginLinkMenu(const QString &link);
+
 private:
     QIcon getFileIcon(const QString &fileName) const;
 
@@ -74,9 +77,10 @@ private:
     JPEGConverter *converter;
 
     FlickrFileView *flickrFileView;
-    QAction *actLogin, *actUpload, *actExit;
+    QAction *actLogin, *actUpload, *actExit, *actKeepLoggedIn;
     QLabel *lbUserID, *lbDownloading, *lbUploading;
     QProgressBar *pbDownloading, *pbUploading;
+    QPoint mouseClickPos;
 
     QMap<QString, FileToUpload> uploadMap;
     QMap<QString, BigFileDescription> uploadFilePartMap;

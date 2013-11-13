@@ -90,9 +90,17 @@ void FlickrFileView::mouseDoubleClickEvent(QMouseEvent *event) {
 }
 
 void FlickrFileView::keyReleaseEvent(QKeyEvent *event) {
-    if(event->key() == Qt::Key_Delete) {
+    switch(event->key()) {
+    case Qt::Key_Delete:
         deleteFileTriggered();
         event->accept();
+        break;
+    case Qt::Key_Return: case Qt::Key_Enter:
+        downloadFileTriggered();
+        event->accept();
+        break;
+    default:
+        break;
     }
 }
 
