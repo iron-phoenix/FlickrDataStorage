@@ -3,7 +3,6 @@
 
 #include <QTableView>
 #include <QAction>
-#include <QContextMenuEvent>
 #include <QResizeEvent>
 #include <QStandardItemModel>
 #include <QListView>
@@ -18,20 +17,27 @@ public:
 
     void setFileList(const QList<BigFileDescription> &list);
     void addFile(const BigFileDescription &fd);
+    void deleteFile(const QString &id);
+    void deleteAll();
 
 signals:
     void requestDownload(const BigFileDescription &fd);
     void requestDelete(const BigFileDescription &fd);
+    void requestUpload();
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event);
+    void mouseDoubleClickEvent(QMouseEvent *event);
+    void keyReleaseEvent(QKeyEvent *event);
+    bool event(QEvent *e);
 
 private slots:
     void downloadFileTriggered();
     void deleteFileTriggered();
+    void uploadFileTriggered();
 
 private:
-    QAction *actGetFile, *actDelFile;
+    QAction *actGetFile, *actDelFile, *actUploadFile;
     QStandardItemModel *fileModel;
     QMap<QString, BigFileDescription> fileList;
 };

@@ -253,8 +253,10 @@ void FlickrAPI::uploadFile(const QString &name, const QByteArray &data, const QS
 
     QNetworkReply *reply = netManager->post(req, reqData);
     fileUploadReplyMap[reply] = sourceFileName;
+    connect(reply, SIGNAL(uploadProgress(qint64,qint64)), this, SLOT(emitUploadProgress(qint64,qint64)));
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyUploadError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyUploadFinished()));
+//    connect(reply, SIGNAL(uploadProgress(qint64,qint64)), this, SLOT(emitUploadProgress(qint64,qint64)));
 }
 
 void FlickrAPI::replyUploadFinished() {
@@ -280,7 +282,7 @@ void FlickrAPI::replyUploadFinished() {
 
 //----------------------------------------------------------------------------------
 
-void FlickrAPI::deleteFile(const FileDescription &fd){
+void FlickrAPI::deleteFile(const FileDescription &fd, const QString &fileName) {
     QString methodURL = "http://api.flickr.com/services/rest";
     QMap<QString, QString> requestParams;
     requestParams["oauth_token"] = oauthToken;
@@ -293,24 +295,26 @@ void FlickrAPI::deleteFile(const FileDescription &fd){
     req.setRawHeader("Authorization", oauthHeader(methodURL, requestParams).toAscii());
 
     QNetworkReply *reply = netManager->get(req);
+    fileDeleteReplyMap[reply] = fileName;
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDownloadError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyDeleteFileFinished()));
 }
 
-void FlickrAPI::replyDeleteFileFinished(){
+void FlickrAPI::replyDeleteFileFinished() {
+    QString fileName = extractReplyID(sender(), fileDeleteReplyMap);
     QByteArray reply = getReplyContent(sender());
 
     QDomDocument xmlReply;
     if(!xmlReply.setContent(reply)) {
-        emit fileDeleted(false);
+        emit fileDeleted(false, fileName);
         return;
     }
     QDomElement curNode = xmlReply.firstChild().nextSibling().toElement();
     if(curNode.attribute("stat") != "ok") {
-        emit fileDeleted(false);
+        emit fileDeleted(false, fileName);
         return;
     }
-    emit fileDeleted(true);
+    emit fileDeleted(true, fileName);
 }
 
 //----------------------------------------------------------------------------------
@@ -437,7 +441,7 @@ void FlickrAPI::getFile(const FileDescription &fd, const QString &id) {
     fileDownloadReplyMap[reply] = id;
     connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(replyDownloadError()));
     connect(reply, SIGNAL(finished()), this, SLOT(replyGetFileFinished()));
-    connect(reply, SIGNAL(downloadProgress(qint64,qint64)), this, SLOT(emitDownloadPorgress(qint64,qint64)));
+    connect(reply, SIGNAL(downloadProgress(qint64,qint64)), this, SLOT(emitDownloadProgress(qint64,qint64)));
 }
 
 void FlickrAPI::replyGetFileFinished() {
@@ -567,7 +571,12 @@ QList<BigFileDescription> FlickrAPI::processFiles(QList<FileDescription> &flist)
     return bigFileList.values();
 }
 
-void FlickrAPI::emitDownloadPorgress(qint64 bd, qint64 bt) {
+void FlickrAPI::emitDownloadProgress(qint64 bd, qint64 bt) {
     QString fileName = fileDownloadReplyMap[qobject_cast<QNetworkReply*>(sender())];
     emit downloadProgress(bd, bt, fileName);
+}
+
+void FlickrAPI::emitUploadProgress(qint64 bd, qint64 bt) {
+    QString fileName = fileUploadReplyMap[qobject_cast<QNetworkReply*>(sender())];
+    emit uploadProgress(bd, bt, fileName);
 }

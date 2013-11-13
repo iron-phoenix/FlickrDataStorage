@@ -45,7 +45,7 @@ public:
     void getFileList(int page = -1);
     void getFile(const FileDescription &fd, const QString &id);
     void getFileInfo(const QString &id, const QString &fileName);
-    void deleteFile(FileDescription const &fd);
+    void deleteFile(const FileDescription &fd, const QString &fileName);
 
     bool isLoggedIn() const {
         return !userID.isEmpty() && !userName.isEmpty();
@@ -73,9 +73,10 @@ signals:
     void fileListLoaded(QList<BigFileDescription>);
     void fileInfoLoaded(FileDescription);
     void fileDownloaded(QByteArray, QString);
-    void fileDeleted(bool);
+    void fileDeleted(bool, QString);
 
     void downloadProgress(qint64, qint64, QString);
+    void uploadProgress(qint64, qint64, QString);
 
 private slots:
     void replyUploadError();
@@ -92,7 +93,8 @@ private slots:
     void replyDeleteFileFinished();
     void redirected(QUrl);
 
-    void emitDownloadPorgress(qint64 bd, qint64 bt);
+    void emitDownloadProgress(qint64 bd, qint64 bt);
+    void emitUploadProgress(qint64 bd, qint64 bt);
 
 private:
     void getRequestToken();
@@ -122,6 +124,7 @@ private:
     QList<FileDescription> fileList;
     QMap<QNetworkReply*, QString> fileUploadReplyMap;
     QMap<QNetworkReply*, QString> fileDownloadReplyMap;
+    QMap<QNetworkReply*, QString> fileDeleteReplyMap;
 };
 
 #endif // FLICKRAPI_H

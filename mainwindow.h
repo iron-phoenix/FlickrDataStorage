@@ -35,12 +35,18 @@ private:
     QLabel *lbText;
 };
 
+//----------------------------------------------------------------------------------
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
     
 public:
     MainWindow(QWidget *parent = 0);
     ~MainWindow();
+
+protected:
+    void dragEnterEvent(QDragEnterEvent *event);
+    void dropEvent(QDropEvent *event);
 
 private slots:
     void uploadFile(const QString &fileName);
@@ -51,8 +57,10 @@ private slots:
     void fileUploaded(const FileDescription &id, const QString &fileName);
     void fileDownloaded(const QByteArray &content, const QString &fileName);
     void fileListLoaded(QList<BigFileDescription> files);
+    void fileDeleted(bool stat, const QString &fileName);
 
     void updateDownloadProgress(qint64 bytesLoaded, qint64 bytesTotal, const QString &fileName);
+    void updateUploadProgress(qint64 bytesLoaded, qint64 bytesTotal, const QString &fileName);
 
     void loginUser();
     void logoutUser();
@@ -60,24 +68,25 @@ private slots:
 
 private:
     QIcon getFileIcon(const QString &fileName) const;
-    QString getDownloadingFilesCountString() const;
 
     FlickrAPI *flickrAPI;
     ConnectingDialog *cDialog;
     JPEGConverter *converter;
 
-    QTreeView *dirView;
     FlickrFileView *flickrFileView;
-    QAction *actLogin, *actUpload;
-    QLabel *lbUserID, *lbDownloading;
-    QProgressBar *pbDownloading;
+    QAction *actLogin, *actUpload, *actExit;
+    QLabel *lbUserID, *lbDownloading, *lbUploading;
+    QProgressBar *pbDownloading, *pbUploading;
 
     QMap<QString, FileToUpload> uploadMap;
     QMap<QString, BigFileDescription> uploadFilePartMap;
     QMap<QString, BigFileDescription> downloadFileMap;
-    QMap<QString, quint64> downloadSizeMap, currentSizeMap;
+    QMap<QString, BigFileDescription> deleteFileMap;
+    QMap<QString, quint64> downloadSizeMap, currentDownloadSizeMap;
+    QMap<QString, quint64> uploadSizeMap, currentUploadSizeMap;
 
     quint64 sizeToDownload, sizeDownloaded;
+    quint64 sizeToUpload, sizeUploaded;
 };
 
 #endif // MAINWINDOW_H
