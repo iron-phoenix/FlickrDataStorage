@@ -15,7 +15,7 @@ struct FileToUpload{
     explicit FileToUpload(): partNumber(0), sourceFileName(""), offset(0) {}
 
     QString getFileName(){
-        return sourceFileName + ".part" + QString::number(partNumber) + ".jpeg";
+        return sourceFileName + ".part" + QString::number(partNumber) + ".jpg";
     }
 };
 

@@ -19,7 +19,7 @@ struct FileDescription {
     FileDescription() {}
 
     QString getCroppedName() const {
-        return title.left(title.indexOf(QRegExp("\\.part\\d+\\.jpeg\\b")));
+        return title.left(title.indexOf(QRegExp("\\.part\\d+\\.jp(e?)g\\b")));
 //        return title.left(title.lastIndexOf('.'));
     }
 
