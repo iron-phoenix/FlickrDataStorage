@@ -16,6 +16,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMouseEvent>
+#include <QMimeData>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     flickrAPI = new FlickrAPI(this);
@@ -471,8 +472,7 @@ QIcon MainWindow::getFileIcon(const QString &fileName) const {
 #else
 
 QIcon MainWindow::getFileIcon(const QString &fileName) const {
-    QFileIconProvider fip;
-    return fip.icon(QFileIconProvider::File);
+    return defaultIcon;
 }
 
 #endif

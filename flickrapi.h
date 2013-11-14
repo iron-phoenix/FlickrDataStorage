@@ -2,13 +2,18 @@
 #define FLICKRAPI_H
 
 #include <QObject>
-#include <QWebView>
 #include <QNetworkAccessManager>
 #include <QMap>
 #include <QList>
 #include <QDateTime>
 #include <QUrl>
 #include <QIcon>
+
+#if QT_VERSION >= 0x050000
+#include <QtWebKitWidgets/QWebView>
+#else
+#include <QWebView>
+#endif
 
 struct FileDescription {
     FileDescription() {}

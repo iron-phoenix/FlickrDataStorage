@@ -1,6 +1,6 @@
 #include <JPEGConverter.h>
 
-JPEGConverter::JPEGConverter(QString const &filename): max_size(150 * 1024 * 1024){
+JPEGConverter::JPEGConverter(QString const &filename): max_size(50 * 1024 * 1024){
     QFile file(filename);
     file.open(QIODevice::ReadOnly);
     tmp = file.readAll();
