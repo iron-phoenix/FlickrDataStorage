@@ -57,7 +57,7 @@ void FlickrAPI::getRequestToken() {
     QString methodURL = "http://www.flickr.com/services/oauth/request_token";
 
     QMap<QString, QString> requestParams;
-    requestParams["oauth_callback"] = "http%3A%2F%2Fwww.example.com";
+    requestParams["oauth_callback"] = "http://www.example.com";//"http%3A%2F%2Fwww.example.com";
     setDefaultOAuthParams(methodURL, requestParams);
 
     QNetworkRequest req = QNetworkRequest(QUrl(methodURL));
@@ -458,6 +458,8 @@ void FlickrAPI::replyDeleteError() {
 
 void FlickrAPI::replyAuthError() {
     QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
+//    QMessageBox::critical(0, "", reply->errorString());
+//    qDebug() << reply->errorString();
     reply->disconnect(this);
     reply->deleteLater();
     emit authResult(false);

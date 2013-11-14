@@ -24,7 +24,7 @@ HEADERS  += mainwindow.h \
     JPEGConverter.h \
     flickrfileview.h
 
-#CONFIG += release
+CONFIG += release
 
 RESOURCES += \
     resources.qrc

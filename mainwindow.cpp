@@ -40,8 +40,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     actKeepLoggedIn = new QAction("Keep me logged in", this);
     actKeepLoggedIn->setCheckable(true);
-    QSettings appSettings("settings.ini", QSettings::IniFormat, this);
-    actKeepLoggedIn->setChecked(appSettings.value("keep_logged_in", false).toBool());
+    if(!QFile::exists("settings.ini")) {
+        actKeepLoggedIn->setChecked(true);
+    } else {
+        QSettings appSettings("settings.ini", QSettings::IniFormat, this);
+        actKeepLoggedIn->setChecked(appSettings.value("keep_logged_in", false).toBool());
+    }
 
     actExit = new QAction("Exit", this);
     connect(actExit, SIGNAL(triggered()), qApp, SLOT(quit()));
@@ -53,10 +57,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     fileMenu->addAction(actUpload);
     fileMenu->addSeparator();
     fileMenu->addAction(actExit);
-
-    windowLocker = new QDialog(this, Qt::SplashScreen);
-    windowLocker->resize(0, 0);
-    windowLocker->setModal(true);
 
     converter = new JPEGConverter(":/tmp.jpg");
 
@@ -147,7 +147,6 @@ void MainWindow::mousePressEvent(QMouseEvent *event) {
 void MainWindow::loginUser() {
     lwLoading->setText("Logging in...");
     lwLoading->show();
-    windowLocker->show();
 
     QSettings appSettings("settings.ini", QSettings::IniFormat, this);
     QString token = appSettings.value("auth_token").toString();
@@ -205,7 +204,6 @@ void MainWindow::authResult(bool res) {
         lwLoading->setText("Loading file list...");
         flickrAPI->getFileList();
     } else {
-        windowLocker->hide();
         lwLoading->hide();
         QMessageBox::critical(this, "Error", "Authentication failed");
     }
@@ -306,7 +304,6 @@ void MainWindow::fileListLoaded(QList<BigFileDescription> files) {
     }
     flickrFileView->setFileList(files);
     lwLoading->hide();
-    windowLocker->hide();
 }
 
 //----------------------------------------------------------------------------------

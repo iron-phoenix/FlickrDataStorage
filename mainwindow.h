@@ -80,7 +80,6 @@ private:
     void removeFromUploadMaps(const QString &fileName, bool all = true);
 
     FlickrAPI *flickrAPI;
-    QDialog *windowLocker;
     JPEGConverter *converter;
 
     FlickrFileView *flickrFileView;
