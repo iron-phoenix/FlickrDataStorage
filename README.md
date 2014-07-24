@@ -9,3 +9,5 @@ FlickrDataStorage
 **Warning**: this project works only with Qt 4
 1) `qmake`
 2) `make`
+
+Good luck!
